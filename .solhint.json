@@ -1,0 +1,9 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "indent": ["error", 2],
+    "reason-string": [2, 64],
+    "custom-errors": "off",
+    "no-global-import": "off"
+  }
+}
