@@ -2,5 +2,6 @@
   "[solidity]": {
     "editor.tabSize": 2,
     "editor.insertSpaces": true
-  }
+  },
+  "solidity.compileUsingRemoteVersion": "v0.8.26+commit.8a97fa7a"
 }
