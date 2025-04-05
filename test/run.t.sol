@@ -7,6 +7,7 @@ import {Test, console} from "forge-std/Test.sol";
 contract CounterTest is Test {
 
     function setUp() public {
+      console.log("test");
     }
 
     // function test_Increment() public {

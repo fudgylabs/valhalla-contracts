@@ -6,12 +6,15 @@ import {Script, console} from "forge-std/Script.sol";
 
 contract AnvilScript is Script {
 
-  function setUp() public {}
+  function setUp() public {
+  }
 
   function run() public {
     vm.startBroadcast();
 
 
     vm.stopBroadcast();
+
+    
   }
 }
