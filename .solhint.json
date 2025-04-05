@@ -4,6 +4,12 @@
     "indent": ["error", 2],
     "reason-string": [2, 64],
     "custom-errors": "off",
-    "no-global-import": "off"
+    "no-global-import": "off",
+    "explicit-types": "off",
+    "one-contract-per-file": "off",
+    "contract-name-camelcase": "off",
+    "func-name-mixedcase": "off",
+    "immutable-vars-naming": "off",
+    "state-visibility": "off"
   }
 }

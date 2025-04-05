@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./interfaces/IPool.sol";
 import "./owner/Operator.sol";
 
-contract Oracle is Operator {
+contract ValhallaOracle is Operator {
   using SafeMath for uint256;
 
   address public token0;
