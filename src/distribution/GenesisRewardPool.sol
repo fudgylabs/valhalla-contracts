@@ -1,14 +1,13 @@
-// SPDX-License-Identifier: MIT
-
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "../interfaces/IBasisAsset.sol";
 
-// Note that this pool has no minter key of TOMB (rewards).
-// Instead, the governance will call TOMB distributeReward method and send reward to this pool at the beginning.
-contract TombGenesisRewardPool {
+contract ValhallaGenesisRewardPool is ReentrancyGuard {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
@@ -17,21 +16,23 @@ contract TombGenesisRewardPool {
 
   // Info of each user.
   struct UserInfo {
-    uint256 amount; // How many tokens the user has provided.
+    uint256 amount; // How many LP tokens the user has provided.
     uint256 rewardDebt; // Reward debt. See explanation below.
   }
 
   // Info of each pool.
   struct PoolInfo {
     IERC20 token; // Address of LP token contract.
-    uint256 allocPoint; // How many allocation points assigned to this pool. TOMB to distribute.
-    uint256 lastRewardTime; // Last time that TOMB distribution occurs.
-    uint256 accTombPerShare; // Accumulated TOMB per share, times 1e18. See below.
-    bool isStarted; // if lastRewardBlock has passed
+    uint256 depFee; // deposit fee that is applied to created pool.
+    uint256 allocPoint; // How many allocation points assigned to this pool. VALs to distribute per block.
+    uint256 lastRewardTime; // Last time that VALs distribution occurs.
+    uint256 accValhallaPerShare; // Accumulated VALs per share, times 1e18. See below.
+    bool isStarted; // if lastRewardTime has passed
+    uint256 poolValhallaPerSec; // rewards per second for pool (acts as allocPoint)
   }
 
-  IERC20 public tomb;
-  address public shiba;
+  IERC20 public valhalla;
+  address public devFund;
 
   // Info of each pool.
   PoolInfo[] public poolInfo;
@@ -42,53 +43,79 @@ contract TombGenesisRewardPool {
   // Total allocation points. Must be the sum of all allocation points in all pools.
   uint256 public totalAllocPoint = 0;
 
-  // The time when TOMB mining starts.
+  // The time when VAL mining starts.
   uint256 public poolStartTime;
 
-  // The time when TOMB mining ends.
+  // The time when VAL mining ends.
   uint256 public poolEndTime;
-
-  // TESTNET
-  uint256 public tombPerSecond = 3.0555555 ether; // 11000 TOMB / (1h * 60min * 60s)
-  uint256 public runningTime = 24 hours; // 1 hours
-  uint256 public constant TOTAL_REWARDS = 11000 ether;
-  // END TESTNET
-
-  // MAINNET
-  // uint256 public tombPerSecond = 0.11574 ether; // 10000 TOMB / (24h * 60min * 60s)
-  // uint256 public runningTime = 1 days; // 1 days
-  // uint256 public constant TOTAL_REWARDS = 10000 ether;
-  // END MAINNET
+  uint256 public valhallaPerSecond = 0 ether;
+  uint256 public runningTime = 7 days;
 
   event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
   event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
   event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
   event RewardPaid(address indexed user, uint256 amount);
 
-  constructor(address _tomb, address _shiba, uint256 _poolStartTime) {
-    require(block.timestamp < _poolStartTime, "late");
-    if (_tomb != address(0)) tomb = IERC20(_tomb);
-    if (_shiba != address(0)) shiba = _shiba;
+  constructor(address _valhalla, address _devFund, uint256 _poolStartTime) {
+    require(block.timestamp < _poolStartTime, "pool cant be started in the past");
+    if (_valhalla != address(0)) valhalla = IERC20(_valhalla);
+    if (_devFund != address(0)) devFund = _devFund;
+
     poolStartTime = _poolStartTime;
-    poolEndTime = poolStartTime + runningTime;
+    poolEndTime = _poolStartTime + runningTime;
     operator = msg.sender;
+    devFund = _devFund;
+
+    // create all the pools (daily rewards divided by 86400 seconds)
+    add(0.318750000 ether, 0, IERC20(0x784DD93F3c42DCbF88D45E6ad6D3CC20dA169a60), false, 0); // VAL-OS 27% (27540/86400)
+    add(0.224305556 ether, 100, IERC20(0xb1e25689D55734FD3ffFc939c4C3Eb52DFf8A794), false, 0); // OS 19% (19380/86400)
+    add(0.118055556 ether, 100, IERC20(0x79bbF4508B1391af3A0F4B30bb5FC4aa9ab0E07C), false, 0); // Anon 10% (10200/86400)
+    add(0.106250000 ether, 100, IERC20(0x44E23B1F3f4511b3a7e81077Fd9F2858dF1B7579), false, 0); // Mclb 9% (9180/86400)
+    add(0.129861111 ether, 100, IERC20(0xA04BC7140c26fc9BB1F36B1A604C7A5a88fb0E70), false, 0); // SWPx 11% (11220/86400)
+    add(0.082638889 ether, 100, IERC20(0xE5DA20F15420aD15DE0fa650600aFc998bbE3955), false, 0); // stS 7% (7140/86400)
+    add(0.082638889 ether, 100, IERC20(0xd3DCe716f3eF535C5Ff8d041c1A41C3bd89b97aE), false, 0); // scUSD 7% (7140/86400)
+    add(0.047222222 ether, 100, IERC20(0x4EEC869d847A6d13b0F6D1733C5DEC0d1E741B4f), false, 0); // Indi 4% (4080/86400)
+    add(0.047222222 ether, 100, IERC20(0x9fDbC3f8Abc05Fa8f3Ad3C17D2F806c1230c4564), false, 0); // Goglz 4% (4080/86400)
+    add(0.023611111 ether, 100, IERC20(0x2D0E0814E62D80056181F5cd932274405966e4f0), false, 0); // Beets 2% (2040/86400)
   }
 
   modifier onlyOperator() {
-    require(operator == msg.sender, "TombGenesisPool: caller is not the operator");
+    require(operator == msg.sender, "ValhallaGenesisRewardPool: caller is not the operator");
     _;
+  }
+
+  function poolLength() external view returns (uint256) {
+    return poolInfo.length;
   }
 
   function checkPoolDuplicate(IERC20 _token) internal view {
     uint256 length = poolInfo.length;
     for (uint256 pid = 0; pid < length; ++pid) {
-      require(poolInfo[pid].token != _token, "TombGenesisPool: existing pool?");
+      require(poolInfo[pid].token != _token, "ValhallaGenesisRewardPool: existing pool?");
     }
   }
 
-  // Add a new token to the pool. Can only be called by the owner.
+  // bulk add pools
+  function addBulk(
+    uint256[] calldata _allocPoints,
+    uint256[] calldata _depFees,
+    IERC20[] calldata _tokens,
+    bool _withUpdate,
+    uint256 _lastRewardTime
+  ) external onlyOperator {
+    require(
+      _allocPoints.length == _depFees.length && _allocPoints.length == _tokens.length,
+      "ValhallaGenesisRewardPool: invalid length"
+    );
+    for (uint256 i = 0; i < _allocPoints.length; i++) {
+      add(_allocPoints[i], _depFees[i], _tokens[i], _withUpdate, _lastRewardTime);
+    }
+  }
+
+  // Add new lp to the pool. Can only be called by operator.
   function add(
     uint256 _allocPoint,
+    uint256 _depFee,
     IERC20 _token,
     bool _withUpdate,
     uint256 _lastRewardTime
@@ -116,25 +143,49 @@ contract TombGenesisRewardPool {
     poolInfo.push(
       PoolInfo({
         token: _token,
+        depFee: _depFee,
         allocPoint: _allocPoint,
+        poolValhallaPerSec: _allocPoint,
         lastRewardTime: _lastRewardTime,
-        accTombPerShare: 0,
+        accValhallaPerShare: 0,
         isStarted: _isStarted
       })
     );
+
     if (_isStarted) {
       totalAllocPoint = totalAllocPoint.add(_allocPoint);
+      valhallaPerSecond = valhallaPerSecond.add(_allocPoint);
     }
   }
 
-  // Update the given pool's TOMB allocation point. Can only be called by the owner.
-  function set(uint256 _pid, uint256 _allocPoint) public onlyOperator {
+  // Update the given pool's VAL allocation point. Can only be called by the operator.
+  function set(uint256 _pid, uint256 _allocPoint, uint256 _depFee) public onlyOperator {
     massUpdatePools();
+
     PoolInfo storage pool = poolInfo[_pid];
+    require(_depFee < 200); // deposit fee cant be more than 2%;
+    pool.depFee = _depFee;
+
     if (pool.isStarted) {
       totalAllocPoint = totalAllocPoint.sub(pool.allocPoint).add(_allocPoint);
+      valhallaPerSecond = valhallaPerSecond.sub(pool.poolValhallaPerSec).add(_allocPoint);
     }
     pool.allocPoint = _allocPoint;
+    pool.poolValhallaPerSec = _allocPoint;
+  }
+
+  function bulkSet(
+    uint256[] calldata _pids,
+    uint256[] calldata _allocPoints,
+    uint256[] calldata _depFees
+  ) external onlyOperator {
+    require(
+      _pids.length == _allocPoints.length && _pids.length == _depFees.length,
+      "ValhallaGenesisRewardPool: invalid length"
+    );
+    for (uint256 i = 0; i < _pids.length; i++) {
+      set(_pids[i], _allocPoints[i], _depFees[i]);
+    }
   }
 
   // Return accumulate rewards over the given _from to _to block.
@@ -142,30 +193,29 @@ contract TombGenesisRewardPool {
     if (_fromTime >= _toTime) return 0;
     if (_toTime >= poolEndTime) {
       if (_fromTime >= poolEndTime) return 0;
-      if (_fromTime <= poolStartTime) return poolEndTime.sub(poolStartTime).mul(tombPerSecond);
-      return poolEndTime.sub(_fromTime).mul(tombPerSecond);
+      if (_fromTime <= poolStartTime) return poolEndTime.sub(poolStartTime).mul(valhallaPerSecond);
+      return poolEndTime.sub(_fromTime).mul(valhallaPerSecond);
     } else {
       if (_toTime <= poolStartTime) return 0;
-      if (_fromTime <= poolStartTime) return _toTime.sub(poolStartTime).mul(tombPerSecond);
-      return _toTime.sub(_fromTime).mul(tombPerSecond);
+      if (_fromTime <= poolStartTime) return _toTime.sub(poolStartTime).mul(valhallaPerSecond);
+      return _toTime.sub(_fromTime).mul(valhallaPerSecond);
     }
   }
 
-  // View function to see pending TOMB on frontend.
-  function pendingTOMB(uint256 _pid, address _user) external view returns (uint256) {
+  // View function to see pending VALs on frontend.
+  function pendingVAL(uint256 _pid, address _user) external view returns (uint256) {
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][_user];
-    uint256 accTombPerShare = pool.accTombPerShare;
+    uint256 accValhallaPerShare = pool.accValhallaPerShare;
     uint256 tokenSupply = pool.token.balanceOf(address(this));
     if (block.timestamp > pool.lastRewardTime && tokenSupply != 0) {
       uint256 _generatedReward = getGeneratedReward(pool.lastRewardTime, block.timestamp);
-      uint256 _tombReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
-      accTombPerShare = accTombPerShare.add(_tombReward.mul(1e18).div(tokenSupply));
+      uint256 _valhallaReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
+      accValhallaPerShare = accValhallaPerShare.add(_valhallaReward.mul(1e18).div(tokenSupply));
     }
-    return user.amount.mul(accTombPerShare).div(1e18).sub(user.rewardDebt);
+    return user.amount.mul(accValhallaPerShare).div(1e18).sub(user.rewardDebt);
   }
 
-  // Update reward variables for all pools. Be careful of gas spending!
   function massUpdatePools() public {
     uint256 length = poolInfo.length;
     for (uint256 pid = 0; pid < length; ++pid) {
@@ -173,8 +223,16 @@ contract TombGenesisRewardPool {
     }
   }
 
+  // massUpdatePoolsInRange
+  function massUpdatePoolsInRange(uint256 _fromPid, uint256 _toPid) public {
+    require(_fromPid <= _toPid, "ValhallaGenesisRewardPool: invalid range");
+    for (uint256 pid = _fromPid; pid <= _toPid; ++pid) {
+      updatePool(pid);
+    }
+  }
+
   // Update reward variables of the given pool to be up-to-date.
-  function updatePool(uint256 _pid) public {
+  function updatePool(uint256 _pid) private {
     PoolInfo storage pool = poolInfo[_pid];
     if (block.timestamp <= pool.lastRewardTime) {
       return;
@@ -187,62 +245,65 @@ contract TombGenesisRewardPool {
     if (!pool.isStarted) {
       pool.isStarted = true;
       totalAllocPoint = totalAllocPoint.add(pool.allocPoint);
+      valhallaPerSecond = valhallaPerSecond.add(pool.poolValhallaPerSec);
     }
     if (totalAllocPoint > 0) {
       uint256 _generatedReward = getGeneratedReward(pool.lastRewardTime, block.timestamp);
-      uint256 _tombReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
-      pool.accTombPerShare = pool.accTombPerShare.add(_tombReward.mul(1e18).div(tokenSupply));
+      uint256 _valhallaReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
+      pool.accValhallaPerShare = pool.accValhallaPerShare.add(_valhallaReward.mul(1e18).div(tokenSupply));
     }
     pool.lastRewardTime = block.timestamp;
   }
 
+  function setDevFund(address _devFund) public onlyOperator {
+    devFund = _devFund;
+  }
+
   // Deposit LP tokens.
-  function deposit(uint256 _pid, uint256 _amount) public {
+  function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
     address _sender = msg.sender;
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][_sender];
     updatePool(_pid);
     if (user.amount > 0) {
-      uint256 _pending = user.amount.mul(pool.accTombPerShare).div(1e18).sub(user.rewardDebt);
+      uint256 _pending = user.amount.mul(pool.accValhallaPerShare).div(1e18).sub(user.rewardDebt);
       if (_pending > 0) {
-        safeTombTransfer(_sender, _pending);
+        safeValhallaTransfer(_sender, _pending);
         emit RewardPaid(_sender, _pending);
       }
     }
     if (_amount > 0) {
       pool.token.safeTransferFrom(_sender, address(this), _amount);
-      if (address(pool.token) == shiba) {
-        user.amount = user.amount.add(_amount.mul(9900).div(10000));
-      } else {
-        user.amount = user.amount.add(_amount);
-      }
+      uint256 depositDebt = _amount.mul(pool.depFee).div(10000);
+      user.amount = user.amount.add(_amount.sub(depositDebt));
+      pool.token.safeTransfer(devFund, depositDebt);
     }
-    user.rewardDebt = user.amount.mul(pool.accTombPerShare).div(1e18);
+    user.rewardDebt = user.amount.mul(pool.accValhallaPerShare).div(1e18);
     emit Deposit(_sender, _pid, _amount);
   }
 
   // Withdraw LP tokens.
-  function withdraw(uint256 _pid, uint256 _amount) public {
+  function withdraw(uint256 _pid, uint256 _amount) public nonReentrant {
     address _sender = msg.sender;
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][_sender];
     require(user.amount >= _amount, "withdraw: not good");
     updatePool(_pid);
-    uint256 _pending = user.amount.mul(pool.accTombPerShare).div(1e18).sub(user.rewardDebt);
+    uint256 _pending = user.amount.mul(pool.accValhallaPerShare).div(1e18).sub(user.rewardDebt);
     if (_pending > 0) {
-      safeTombTransfer(_sender, _pending);
+      safeValhallaTransfer(_sender, _pending);
       emit RewardPaid(_sender, _pending);
     }
     if (_amount > 0) {
       user.amount = user.amount.sub(_amount);
       pool.token.safeTransfer(_sender, _amount);
     }
-    user.rewardDebt = user.amount.mul(pool.accTombPerShare).div(1e18);
+    user.rewardDebt = user.amount.mul(pool.accValhallaPerShare).div(1e18);
     emit Withdraw(_sender, _pid, _amount);
   }
 
   // Withdraw without caring about rewards. EMERGENCY ONLY.
-  function emergencyWithdraw(uint256 _pid) public {
+  function emergencyWithdraw(uint256 _pid) public nonReentrant {
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][msg.sender];
     uint256 _amount = user.amount;
@@ -252,14 +313,14 @@ contract TombGenesisRewardPool {
     emit EmergencyWithdraw(msg.sender, _pid, _amount);
   }
 
-  // Safe TOMB transfer function, just in case if rounding error causes pool to not have enough TOMBs.
-  function safeTombTransfer(address _to, uint256 _amount) internal {
-    uint256 _tombBalance = tomb.balanceOf(address(this));
-    if (_tombBalance > 0) {
-      if (_amount > _tombBalance) {
-        tomb.safeTransfer(_to, _tombBalance);
+  // Safe valhalla transfer function, just in case if rounding error causes pool to not have enough VALs.
+  function safeValhallaTransfer(address _to, uint256 _amount) internal {
+    uint256 _valhallaBal = valhalla.balanceOf(address(this));
+    if (_valhallaBal > 0) {
+      if (_amount > _valhallaBal) {
+        valhalla.safeTransfer(_to, _valhallaBal);
       } else {
-        tomb.safeTransfer(_to, _amount);
+        valhalla.safeTransfer(_to, _amount);
       }
     }
   }
@@ -273,15 +334,15 @@ contract TombGenesisRewardPool {
     uint256 amount,
     address to
   ) external onlyOperator {
-    if (block.timestamp < poolEndTime + 90 days) {
-      // do not allow to drain core token (TOMB or lps) if less than 90 days after pool ends
-      require(_token != tomb, "tomb");
+    if (block.timestamp < poolEndTime + 7 days) {
+      // do not allow to drain tokens if less than 7 days after pool ends
       uint256 length = poolInfo.length;
       for (uint256 pid = 0; pid < length; ++pid) {
         PoolInfo storage pool = poolInfo[pid];
-        require(_token != pool.token, "pool.token");
+        require(_token != pool.token, "token cannot be pool token");
       }
     }
+
     _token.safeTransfer(to, amount);
   }
 }
