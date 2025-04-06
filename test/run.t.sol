@@ -23,7 +23,7 @@ contract CounterTest is Test {
   address public constant OPERATOR = address(uint160(uint256(keccak256("OPERATOR"))));
 
   // POOLS
-  
+
 
   // CONTRACTS
   Valhalla public _valhalla;
@@ -64,7 +64,7 @@ contract CounterTest is Test {
     vm.stopPrank();
   }
 
-  function test_FetchContractData() public {
+  function test_FetchContractData() public view {
     bytes memory routerCode = address(ROUTER).code;
     bytes memory factoryCode = address(FACTORY).code;
     bytes memory osCode = address(OS).code;
