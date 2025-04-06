@@ -28,6 +28,8 @@ interface IWETH {
   function totalSupply() external view returns (uint256);
   function transfer(address to, uint256 value) external returns (bool);
   function transferFrom(address from, address to, uint256 value) external returns (bool);
+  function mint(address _account, uint256 _amount) external;
+
 
   // Wrapped token specific functions
   function deposit() external payable;
@@ -37,4 +39,5 @@ interface IWETH {
 
   // Fallback function to handle direct deposits
   fallback() external payable;
+  receive() external payable;
 }

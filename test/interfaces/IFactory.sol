@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-interface IPairFactory {
+interface IFactory {
   function allPairsLength() external view returns (uint);
   function isPair(address pair) external view returns (bool);
   function allPairs(uint index) external view returns (address);
