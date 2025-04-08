@@ -7,6 +7,9 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../interfaces/IBasisAsset.sol";
 
+import "../interfaces/shadow/IGauge.sol";
+import "../interfaces/shadow/IVoter.sol";
+
 contract ValhallaGenesisRewardPool is ReentrancyGuard {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
@@ -20,6 +23,12 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     uint256 rewardDebt; // Reward debt. See explanation below.
   }
 
+  struct GaugeInfo {
+    bool isGauge; // If this is a gauge
+    IGauge gauge; // The gauge
+    address[] rewardTokens; // tokens that are used in the gauge
+  }
+
   // Info of each pool.
   struct PoolInfo {
     IERC20 token; // Address of LP token contract.
@@ -28,10 +37,13 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     uint256 lastRewardTime; // Last time that VALs distribution occurs.
     uint256 accValhallaPerShare; // Accumulated VALs per share, times 1e18. See below.
     bool isStarted; // if lastRewardTime has passed
+    GaugeInfo gaugeInfo; // Gauge info (does this pool have a gauge and where is it)
     uint256 poolValhallaPerSec; // rewards per second for pool (acts as allocPoint)
   }
 
   IERC20 public valhalla;
+  IVoter public voter;
+  address public xSHADOW = 0x5050bc082FF4A74Fb6B0B04385dEfdDB114b2424;
   address public devFund;
 
   // Info of each pool.
@@ -56,7 +68,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
   event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
   event RewardPaid(address indexed user, uint256 amount);
 
-  constructor(address _valhalla, address _devFund, uint256 _poolStartTime) {
+  constructor(address _valhalla, address _devFund, uint256 _poolStartTime, address _voter) {
     require(block.timestamp < _poolStartTime, "pool cant be started in the past");
     if (_valhalla != address(0)) valhalla = IERC20(_valhalla);
     if (_devFund != address(0)) devFund = _devFund;
@@ -64,19 +76,26 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     poolStartTime = _poolStartTime;
     poolEndTime = _poolStartTime + runningTime;
     operator = msg.sender;
+    voter = IVoter(_voter);
     devFund = _devFund;
 
     // create all the pools (daily rewards divided by 86400 seconds)
-    add(0.318750000 ether, 0, IERC20(0x784DD93F3c42DCbF88D45E6ad6D3CC20dA169a60), false, 0); // VAL-OS 27% (27540/86400)
-    add(0.224305556 ether, 100, IERC20(0xb1e25689D55734FD3ffFc939c4C3Eb52DFf8A794), false, 0); // OS 19% (19380/86400)
-    add(0.118055556 ether, 100, IERC20(0x79bbF4508B1391af3A0F4B30bb5FC4aa9ab0E07C), false, 0); // Anon 10% (10200/86400)
-    add(0.106250000 ether, 100, IERC20(0x44E23B1F3f4511b3a7e81077Fd9F2858dF1B7579), false, 0); // Mclb 9% (9180/86400)
-    add(0.129861111 ether, 100, IERC20(0xA04BC7140c26fc9BB1F36B1A604C7A5a88fb0E70), false, 0); // SWPx 11% (11220/86400)
-    add(0.082638889 ether, 100, IERC20(0xE5DA20F15420aD15DE0fa650600aFc998bbE3955), false, 0); // stS 7% (7140/86400)
-    add(0.082638889 ether, 100, IERC20(0xd3DCe716f3eF535C5Ff8d041c1A41C3bd89b97aE), false, 0); // scUSD 7% (7140/86400)
-    add(0.047222222 ether, 100, IERC20(0x4EEC869d847A6d13b0F6D1733C5DEC0d1E741B4f), false, 0); // Indi 4% (4080/86400)
-    add(0.047222222 ether, 100, IERC20(0x9fDbC3f8Abc05Fa8f3Ad3C17D2F806c1230c4564), false, 0); // Goglz 4% (4080/86400)
-    add(0.023611111 ether, 100, IERC20(0x2D0E0814E62D80056181F5cd932274405966e4f0), false, 0); // Beets 2% (2040/86400)
+    add(0.538194444 ether, 150, IERC20(0xb1e25689D55734FD3ffFc939c4C3Eb52DFf8A794), false, 0); // OS 70k (10000/86400)
+    add(0.402777778 ether, 150, IERC20(0xd3DCe716f3eF535C5Ff8d041c1A41C3bd89b97aE), false, 0); // SCUSD 84.7k (12100/86400)
+    add(0.180555556 ether, 150, IERC20(0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812), false, 0); // SCETH 54.6k (7800/86400)
+    add(0.180555556 ether, 150, IERC20(0xBb30e76d9Bb2CC9631F7fC5Eb8e87B5Aff32bFbd), false, 0); // SCBTC 54.6k (7800/86400)
+    add(0.070833333 ether, 150, IERC20(0xE5DA20F15420aD15DE0fa650600aFc998bbE3955), false, 0); // STS 24.5k (3500/86400)
+    add(0.070833333 ether, 150, IERC20(0x3333b97138D4b086720b5aE8A7844b1345a33333), false, 0); // SHADOW 24.5k (3500/86400)
+    add(0.058333333 ether, 150, IERC20(0x3333111A391cC08fa51353E9195526A70b333333), false, 0); // X33 19.6k (2800/86400)
+    add(0.058333333 ether, 150, IERC20(0x7A0C53F7eb34C5BC8B01691723669adA9D6CB384), false, 0); // BOO 19.6k (2800/86400)
+    add(0.058333333 ether, 150, IERC20(0xddF26B42C1d903De8962d3F79a74a501420d5F19), false, 0); // EQUAL 19.6k (2800/86400)
+    add(0.045572917 ether, 150, IERC20(0xf26Ff70573ddc8a90Bd7865AF8d7d70B8Ff019bC), false, 0); // EGGS 17.5k (2500/86400)
+    add(0.027777778 ether, 150, IERC20(0x79bbF4508B1391af3A0F4B30bb5FC4aa9ab0E07C), false, 0); // ANON 10.5k (1500/86400)
+    add(0.013333333 ether, 150, IERC20(0xe920d1DA9A4D59126dC35996Ea242d60EFca1304), false, 0); // DERP 8.05k (1150/86400)
+    add(0.011574074 ether, 150, IERC20(0x9fDbC3f8Abc05Fa8f3Ad3C17D2F806c1230c4564), false, 0); // GOGLZ 7k (1000/86400)
+    add(0.011574074 ether, 150, IERC20(0x6fB9897896Fe5D05025Eb43306675727887D0B7c), false, 0); // HEDGY 7k (1000/86400)
+    add(0.016203704 ether, 150, IERC20(0x31E2eed04a62b232DA964A097D8C171584e3C3Bd), false, 0); // OIL 9.8k (1400/86400)
+    add(0.016203704 ether, 150, IERC20(0xE51EE9868C1f0d6cd968A8B8C8376Dc2991BFE44), false, 0); // BRUSH 9.8k (1400/86400)
   }
 
   modifier onlyOperator() {
@@ -140,6 +159,8 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
       }
     }
     bool _isStarted = (_lastRewardTime <= poolStartTime) || (_lastRewardTime <= block.timestamp);
+    address[] memory rewardTokensGauge = new address[](1);
+    rewardTokensGauge[0] = xSHADOW;
     poolInfo.push(
       PoolInfo({
         token: _token,
@@ -148,7 +169,8 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
         poolValhallaPerSec: _allocPoint,
         lastRewardTime: _lastRewardTime,
         accValhallaPerShare: 0,
-        isStarted: _isStarted
+        isStarted: _isStarted,
+        gaugeInfo: GaugeInfo(false, IGauge(address(0)), rewardTokensGauge)
       })
     );
 
@@ -220,6 +242,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     uint256 length = poolInfo.length;
     for (uint256 pid = 0; pid < length; ++pid) {
       updatePool(pid);
+      updatePoolWithGaugeDeposit(pid);
     }
   }
 
@@ -228,6 +251,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     require(_fromPid <= _toPid, "ValhallaGenesisRewardPool: invalid range");
     for (uint256 pid = _fromPid; pid <= _toPid; ++pid) {
       updatePool(pid);
+      updatePoolWithGaugeDeposit(pid);
     }
   }
 
@@ -250,13 +274,97 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     if (totalAllocPoint > 0) {
       uint256 _generatedReward = getGeneratedReward(pool.lastRewardTime, block.timestamp);
       uint256 _valhallaReward = _generatedReward.mul(pool.allocPoint).div(totalAllocPoint);
-      pool.accValhallaPerShare = pool.accValhallaPerShare.add(_valhallaReward.mul(1e18).div(tokenSupply));
+      pool.accValhallaPerShare = pool.accValhallaPerShare.add(
+        _valhallaReward.mul(1e18).div(tokenSupply)
+      );
     }
     pool.lastRewardTime = block.timestamp;
+    claimLegacyRewards(_pid);
+  }
+
+  // Deposit LP tokens to earn rewards
+  function updatePoolWithGaugeDeposit(uint256 _pid) public {
+    PoolInfo storage pool = poolInfo[_pid];
+    address gauge = address(pool.gaugeInfo.gauge);
+    uint256 balance = pool.token.balanceOf(address(this));
+    // Do nothing if this pool doesn't have a gauge
+    if (pool.gaugeInfo.isGauge) {
+      // Do nothing if the LP token in the MC is empty
+      if (balance > 0) {
+        // Approve to the gauge
+        if (pool.token.allowance(address(this), gauge) < balance) {
+          pool.token.approve(gauge, type(uint256).max);
+        }
+        // Deposit the LP in the gauge
+        pool.gaugeInfo.gauge.depositFor(address(this), balance);
+      }
+    }
+  }
+
+  // Claim rewards to treasury
+  function claimLegacyRewards(uint256 _pid) public {
+    PoolInfo storage pool = poolInfo[_pid];
+    if (pool.gaugeInfo.isGauge) {
+      if (pool.gaugeInfo.rewardTokens.length > 0) {
+        uint256[] memory beforeBalances = new uint256[](pool.gaugeInfo.rewardTokens.length);
+
+        // Store balances before claim
+        for (uint256 i = 0; i < pool.gaugeInfo.rewardTokens.length; i++) {
+          beforeBalances[i] = IERC20(pool.gaugeInfo.rewardTokens[i]).balanceOf(address(this));
+        }
+
+        address[] memory gaugesToCheck = new address[](1);
+        gaugesToCheck[0] = address(pool.gaugeInfo.gauge);
+
+        address[][] memory gaugeRewardTokens = new address[][](1);
+        gaugeRewardTokens[0] = pool.gaugeInfo.rewardTokens;
+
+        voter.claimRewards(gaugesToCheck, gaugeRewardTokens);
+
+        for (uint256 i = 0; i < pool.gaugeInfo.rewardTokens.length; i++) {
+          IERC20 rewardToken = IERC20(pool.gaugeInfo.rewardTokens[i]);
+          uint256 afterBalance = rewardToken.balanceOf(address(this));
+          uint256 rewardAmount = afterBalance - beforeBalances[i];
+
+          if (rewardAmount > 0) {
+            rewardToken.safeTransfer(devFund, rewardAmount);
+          }
+        }
+      }
+    }
+  }
+
+  // Add a gauge to a pool
+  function enableGauge(uint256 _pid) public onlyOperator {
+    address gauge = voter.gaugeForPool(address(poolInfo[_pid].token));
+    if (gauge != address(0)) {
+      address[] memory rewardTokensGauge = new address[](1);
+      rewardTokensGauge[0] = xSHADOW;
+      poolInfo[_pid].gaugeInfo = GaugeInfo(true, IGauge(gauge), rewardTokensGauge);
+    }
+  }
+
+  function setGaugeRewardTokens(
+    uint256 _pid,
+    address[] calldata _rewardTokens
+  ) public onlyOperator {
+    PoolInfo storage pool = poolInfo[_pid];
+    require(pool.gaugeInfo.isGauge, "SnakeGenesisRewardPool: not a gauge pool");
+    pool.gaugeInfo.rewardTokens = _rewardTokens;
   }
 
   function setDevFund(address _devFund) public onlyOperator {
     devFund = _devFund;
+  }
+
+  // Withdraw LP from the gauge
+  function withdrawFromGauge(uint256 _pid, uint256 _amount) internal {
+    PoolInfo storage pool = poolInfo[_pid];
+    // Do nothing if this pool doesn't have a gauge
+    if (pool.gaugeInfo.isGauge) {
+      // Withdraw from the gauge
+      pool.gaugeInfo.gauge.withdraw(_amount);
+    }
   }
 
   // Deposit LP tokens.
@@ -278,6 +386,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
       user.amount = user.amount.add(_amount.sub(depositDebt));
       pool.token.safeTransfer(devFund, depositDebt);
     }
+    updatePoolWithGaugeDeposit(_pid);
     user.rewardDebt = user.amount.mul(pool.accValhallaPerShare).div(1e18);
     emit Deposit(_sender, _pid, _amount);
   }
@@ -289,6 +398,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     UserInfo storage user = userInfo[_pid][_sender];
     require(user.amount >= _amount, "withdraw: not good");
     updatePool(_pid);
+    updatePoolWithGaugeDeposit(_pid);
     uint256 _pending = user.amount.mul(pool.accValhallaPerShare).div(1e18).sub(user.rewardDebt);
     if (_pending > 0) {
       safeValhallaTransfer(_sender, _pending);
@@ -296,6 +406,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     }
     if (_amount > 0) {
       user.amount = user.amount.sub(_amount);
+      withdrawFromGauge(_pid, _amount);
       pool.token.safeTransfer(_sender, _amount);
     }
     user.rewardDebt = user.amount.mul(pool.accValhallaPerShare).div(1e18);
@@ -307,6 +418,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     PoolInfo storage pool = poolInfo[_pid];
     UserInfo storage user = userInfo[_pid][msg.sender];
     uint256 _amount = user.amount;
+    withdrawFromGauge(_pid, _amount);
     user.amount = 0;
     user.rewardDebt = 0;
     pool.token.safeTransfer(msg.sender, _amount);
