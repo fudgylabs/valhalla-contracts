@@ -10,7 +10,7 @@ import "../interfaces/IBasisAsset.sol";
 import "../interfaces/shadow/IGauge.sol";
 import "../interfaces/shadow/IVoter.sol";
 
-contract ValhallaGenesisRewardPool is ReentrancyGuard {
+contract Ragnarok is ReentrancyGuard {
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
@@ -99,7 +99,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
   }
 
   modifier onlyOperator() {
-    require(operator == msg.sender, "ValhallaGenesisRewardPool: caller is not the operator");
+    require(operator == msg.sender, "Ragnarok: caller is not the operator");
     _;
   }
 
@@ -110,7 +110,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
   function checkPoolDuplicate(IERC20 _token) internal view {
     uint256 length = poolInfo.length;
     for (uint256 pid = 0; pid < length; ++pid) {
-      require(poolInfo[pid].token != _token, "ValhallaGenesisRewardPool: existing pool?");
+      require(poolInfo[pid].token != _token, "Ragnarok: existing pool?");
     }
   }
 
@@ -124,7 +124,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
   ) external onlyOperator {
     require(
       _allocPoints.length == _depFees.length && _allocPoints.length == _tokens.length,
-      "ValhallaGenesisRewardPool: invalid length"
+      "Ragnarok: invalid length"
     );
     for (uint256 i = 0; i < _allocPoints.length; i++) {
       add(_allocPoints[i], _depFees[i], _tokens[i], _withUpdate, _lastRewardTime);
@@ -203,7 +203,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
   ) external onlyOperator {
     require(
       _pids.length == _allocPoints.length && _pids.length == _depFees.length,
-      "ValhallaGenesisRewardPool: invalid length"
+      "Ragnarok: invalid length"
     );
     for (uint256 i = 0; i < _pids.length; i++) {
       set(_pids[i], _allocPoints[i], _depFees[i]);
@@ -248,7 +248,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
 
   // massUpdatePoolsInRange
   function massUpdatePoolsInRange(uint256 _fromPid, uint256 _toPid) public {
-    require(_fromPid <= _toPid, "ValhallaGenesisRewardPool: invalid range");
+    require(_fromPid <= _toPid, "Ragnarok: invalid range");
     for (uint256 pid = _fromPid; pid <= _toPid; ++pid) {
       updatePool(pid);
       updatePoolWithGaugeDeposit(pid);
@@ -349,7 +349,7 @@ contract ValhallaGenesisRewardPool is ReentrancyGuard {
     address[] calldata _rewardTokens
   ) public onlyOperator {
     PoolInfo storage pool = poolInfo[_pid];
-    require(pool.gaugeInfo.isGauge, "SnakeGenesisRewardPool: not a gauge pool");
+    require(pool.gaugeInfo.isGauge, "Ragnarok: not a gauge pool");
     pool.gaugeInfo.rewardTokens = _rewardTokens;
   }
 

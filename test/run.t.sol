@@ -8,11 +8,17 @@ import { IFactory } from "./interfaces/IFactory.sol";
 import { IPair } from "./interfaces/IPair.sol";
 import { IRouter } from "./interfaces/IRouter.sol";
 import { IWETH } from "./interfaces/IWETH.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract CounterTest is Test {
   // SWAPX
-  address public constant ROUTER = 0xF5F7231073b3B41c04BA655e1a7438b1a7b29c27;
-  address public constant FACTORY = 0xF5F7231073b3B41c04BA655e1a7438b1a7b29c27;
+  address public constant SWAPX_ROUTER = 0xF5F7231073b3B41c04BA655e1a7438b1a7b29c27;
+  address public constant SWAPX_FACTORY = 0xF5F7231073b3B41c04BA655e1a7438b1a7b29c27;
+
+  // SHADOW
+  address public constant SHADOW_ROUTER = 0x1D368773735ee1E678950B7A97bcA2CafB330CDc;
+  address public constant SHADOW_FACTORY = 0x2dA25E7446A70D7be65fd4c053948BEcAA6374c8;
+
 
   // CONFIG
   string constant RPC_URL = "https://sonic-rpc.publicnode.com";
@@ -20,6 +26,8 @@ contract CounterTest is Test {
   // USERS
   address public constant DEPLOYER = address(uint160(uint256(keccak256("DEPLOYER"))));
   address public constant OPERATOR = address(uint160(uint256(keccak256("OPERATOR"))));
+
+  address public _erc20;
 
   // POOLS
   address constant OS = 0xb1e25689D55734FD3ffFc939c4C3Eb52DFf8A794;     // 70k   -> 10000/86400
@@ -56,10 +64,10 @@ contract CounterTest is Test {
 
     vm.startPrank(DEPLOYER);
     _valhalla = new Valhalla();
-    _valhalla.approve(ROUTER, 49 ether);
-    IWETH(payable(OS)).approve(ROUTER, 49 ether);
+    _valhalla.approve(SHADOW_ROUTER, 49 ether);
+    IWETH(payable(OS)).approve(SHADOW_ROUTER, 49 ether);
 
-    (uint amountA, uint amountB, uint liquidity) = IRouter(payable(ROUTER)).addLiquidity(
+    (uint amountA, uint amountB, uint liquidity) = IRouter(payable(SHADOW_ROUTER)).addLiquidity(
       address(_valhalla),
       OS,
       true,
@@ -70,7 +78,7 @@ contract CounterTest is Test {
       DEPLOYER,
       block.timestamp + 3600
     );
-    _pair = IRouter(payable(ROUTER)).pairFor((address(_valhalla)), OS, true);
+    _pair = IRouter(payable(SHADOW_ROUTER)).pairFor((address(_valhalla)), OS, true);
     vm.assertEq(amountA, 49 ether);
     vm.assertEq(amountB, 49 ether);
     vm.assertApproxEqRel(liquidity, 49 ether, 10000);
@@ -81,8 +89,8 @@ contract CounterTest is Test {
   }
 
   function test_FetchContractData() public view {
-    bytes memory routerCode = address(ROUTER).code;
-    bytes memory factoryCode = address(FACTORY).code;
+    bytes memory routerCode = address(SHADOW_ROUTER).code;
+    bytes memory factoryCode = address(SHADOW_FACTORY).code;
     bytes memory osCode = address(OS).code;
 
     console.log("Router code size:");
