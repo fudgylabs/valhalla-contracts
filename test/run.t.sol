@@ -12,6 +12,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Ragnarok } from "../src/distribution/Ragnarok.sol";
 import { IPairFactory } from "../src/interfaces/IPairFactory.sol"; 
+import { VALZapIn } from "../src/zap.sol";
 
 contract CounterTest is Test {
   // SWAPX
@@ -61,6 +62,7 @@ contract CounterTest is Test {
   address public _pair;
   ValhallaOracle public _valhallaOracle;
   Ragnarok public _ragnarok;
+  VALZapIn public _zap;
 
   function setUp() public {
     vm.createSelectFork(RPC_URL);
@@ -72,18 +74,9 @@ contract CounterTest is Test {
     vm.prank(0xa3c0eCA00D2B76b4d1F170b0AB3FdeA16C180186); // OS Vault address
     IWETH(payable(OS)).mint(DEPLOYER, 50 ether);
 
-    // SCUSD
-    // vm.prank(0xbA1333333333a1BA1108E8412f11850A5C319bA9);
-    // IERC20(0xd3DCe716f3eF535C5Ff8d041c1A41C3bd89b97aE).transfer(USER, 50 ether);
     deal(SCUSD, USER, 50 ether, true);
-    // SCETH
-    vm.prank(0x455d5f11Fea33A8fa9D3e285930b478B6bF85265);
-    IERC20(SCETH).transfer(USER, 50 ether);
-    // deal(0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812, USER, 50 ether, true);
-    // SCBTC
-    // vm.prank(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
-    // IERC20(0xBb30e76d9Bb2CC9631F7fC5Eb8e87B5Aff32bFbd).transfer(USER, 50 ether);
-    deal(0xBb30e76d9Bb2CC9631F7fC5Eb8e87B5Aff32bFbd, USER, 50 ether, true);
+    deal(SCETH, USER, 50 ether, true);
+    deal(SCBTC, USER, 50 ether, true);
 
     vm.startPrank(DEPLOYER);
     _valhalla = new Valhalla();
@@ -116,6 +109,9 @@ contract CounterTest is Test {
 
     // add LP genesis pool
     _ragnarok.add(0.237268519 ether, 0, IERC20(_pair), false, 0); // VAL-OS LP 143.5k (20500/86400)
+
+    // need to make zap
+    _zap = new VALZapIn(address(_valhalla), OS, SHADOW_ROUTER);
     vm.stopPrank();
   }
 
@@ -207,7 +203,29 @@ contract CounterTest is Test {
     console.logUint(balance);
   }
 
-  // function test_zap() public {
+  function test_zap() public {
+    uint256 reserves0;
+    uint256 reserves1;
+    (reserves0, reserves1, ) = IPool(_pair).getReserves();
+    IPool(_pair).balanceOf(USER);
+    vm.startPrank(USER);
+    _valhalla.approve(address(_zap), 1 ether);
+    deal(address(_valhalla), USER, 50 ether, true);
+    _zap.zapInToken(address(_valhalla), 1 ether);
 
-  // }
+    IPool(_pair).approve(address(_ragnarok), 400000000000000000);
+    _ragnarok.deposit(18, 400000000000000000);
+    vm.stopPrank();
+
+    uint256 balance  = IERC20(address(_valhalla)).balanceOf(address(USER));
+    console.logUint(balance);
+
+    vm.warp(initialTimestamp + 26 hours);
+    vm.startPrank(USER);
+    _ragnarok.deposit(18, 0);
+    vm.stopPrank();
+
+    balance  = IERC20(address(_valhalla)).balanceOf(address(USER));
+    console.logUint(balance);
+  }
 }

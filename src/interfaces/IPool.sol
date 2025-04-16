@@ -154,4 +154,7 @@ interface IPool {
 
   /// @notice returns the feeRecipient of the pair
   function feeRecipient() external view returns (address);
+
+  function balanceOf(address) external view returns (uint256);
+  function approve(address, uint256) external;
 }
