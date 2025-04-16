@@ -1,0 +1,10 @@
+{
+  "network": "sonic",
+  "deploymentTimestamp": "1744807022",
+  "contracts": {
+    "Valhalla": "",
+    "Ragnarok": "",
+    "VALZapIn": "",
+    "VAL_OS_Pair": ""
+  }
+}

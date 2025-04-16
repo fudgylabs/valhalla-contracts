@@ -88,7 +88,7 @@ contract CounterTest is Test {
     _valhalla.approve(SHADOW_ROUTER, 49 ether);
     IWETH(payable(OS)).approve(SHADOW_ROUTER, 49 ether);
 
-    IPairFactory(SHADOW_PAIR_FACTORY).createPair(address(_valhalla), OS, false);
+    IPairFactory(SHADOW_PAIR_FACTORY).createPair(address(_valhalla), OS, true);
     (uint amountA, uint amountB, uint liquidity) = IRouter(payable(SHADOW_ROUTER)).addLiquidity(
       address(_valhalla),
       OS,

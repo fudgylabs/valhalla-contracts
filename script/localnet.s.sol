@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { Script, console } from "forge-std/Script.sol";
 import { Valhalla } from "../src/Valhalla.sol";
 import { Ragnarok } from "../src/distribution/Ragnarok.sol";
 import { ValhallaOracle } from "../src/ValhallaOracle.sol";
+import { VALZapIn } from "../src/zap.sol";
+import { IPairFactory } from "../src/interfaces/IPairFactory.sol"; 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "../src/interfaces/IWETH.sol";
 import "../src/interfaces/IRouter.sol";
 import "../src/interfaces/IPool.sol";
-import "../src/interfaces/IERC20.sol";
 // deal tokens to deployer address
 // deploy valhalla
 // deploy pair with router
@@ -22,18 +24,25 @@ contract AnvilScript is Script {
   Ragnarok public _ragnarok;
   ValhallaOracle public _valhallaOracle;
   address public _pair;
+  VALZapIn public _zap;
 
   // SHADOW
   address public constant SHADOW_ROUTER = 0x1D368773735ee1E678950B7A97bcA2CafB330CDc;
   address public constant SHADOW_FACTORY = 0x2dA25E7446A70D7be65fd4c053948BEcAA6374c8;
+  address public constant SHADOW_VOTER = 0x2dA25E7446A70D7be65fd4c053948BEcAA6374c8;
+  address public constant SHADOW_PAIR_FACTORY = 0x2dA25E7446A70D7be65fd4c053948BEcAA6374c8;
 
   // CONFIG
   string constant RPC_URL = "http://127.0.0.1:8545";
+  uint256 public initialTimestamp;
 
   // USERS
   address public constant DEPLOYER = address(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
   address public constant OPERATOR = address(uint160(uint256(keccak256("OPERATOR"))));
+  address public constant USER = address(uint160(uint256(keccak256("USER"))));
+  address public constant DEVFUND = address(uint160(uint256(keccak256("DEVFUND"))));
 
+  address constant WS = 0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38;
   address constant OS = 0xb1e25689D55734FD3ffFc939c4C3Eb52DFf8A794; // 70k   -> 10000/86400
   address constant SCUSD = 0xd3DCe716f3eF535C5Ff8d041c1A41C3bd89b97aE; // 84.7k -> 12100/86400
   address constant SCETH = 0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812; // 54.6k -> 7800/86400
@@ -58,52 +67,82 @@ contract AnvilScript is Script {
   }
 
   function run() public {
-    vm.createSelectFork(RPC_URL);
-
-    vm.deal(DEPLOYER, 50 ether);
-
-    vm.prank(0xa3c0eCA00D2B76b4d1F170b0AB3FdeA16C180186); // OS Vault address
-    IWETH(payable(OS)).mint(DEPLOYER, 50 ether);
+    // vm.createSelectFork(RPC_URL);
 
     vm.startBroadcast(DEPLOYER);
 
+    initialTimestamp = block.timestamp;
+    vm.deal(DEPLOYER, 10 ether);
+    vm.deal(USER, 10 ether);
+
+    IWETH(payable(WS)).deposit{value: 10 ether}();
+
+    swapWSForToken(OS, 10 ether, false);
+
+    // deal(SCUSD, USER, 50 ether, true);
+    // deal(SCETH, USER, 50 ether, true);
+    // deal(SCBTC, USER, 50 ether, true);
+
+    // vm.startPrank(DEPLOYER);
     _valhalla = new Valhalla();
+
+    // distribute valhalla
+    _ragnarok = new Ragnarok(
+      address(_valhalla),
+      DEVFUND,
+      initialTimestamp + 3600 * 2,
+      SHADOW_VOTER
+    );
+    _valhalla.distributeReward(DEVFUND, address(_ragnarok));
+
     _valhalla.approve(SHADOW_ROUTER, 49 ether);
     IWETH(payable(OS)).approve(SHADOW_ROUTER, 49 ether);
 
-    (uint amountA, uint amountB, uint liquidity) = IRouter(payable(SHADOW_ROUTER)).addLiquidity(
-      address(_valhalla),
-      OS,
-      true,
-      49 ether,
-      49 ether,
-      0,
-      0,
-      DEPLOYER,
-      block.timestamp + 3600
-    );
-    _pair = IRouter(payable(SHADOW_ROUTER)).pairFor((address(_valhalla)), OS, false);
-    _valhallaOracle = new ValhallaOracle(IPool(_pair));
+    IPairFactory(SHADOW_PAIR_FACTORY).createPair(address(_valhalla), OS, false);
+    // (uint amountA, uint amountB, uint liquidity) = IRouter(payable(SHADOW_ROUTER)).addLiquidity(
+    //   address(_valhalla),
+    //   OS,
+    //   true,
+    //   49 ether,
+    //   49 ether,
+    //   0,
+    //   0,
+    //   DEPLOYER,
+    //   block.timestamp + 600
+    // );
+    // _pair = IRouter(payable(SHADOW_ROUTER)).pairFor((address(_valhalla)), OS, true);
+    // // vm.assertEq(amountA, 49 ether);
+    // // vm.assertEq(amountB, 49 ether);
+    // // vm.assertApproxEqRel(liquidity, 49 ether, 10000);
 
-    console.log("Valhalla deployed at:", address(_valhalla));
-    console.log("ValhallaOracle deployed at:", address(_valhallaOracle));
-    console.log("Pair address:", _pair);
-    console.log("Liquidity added:", liquidity);
+    // _valhallaOracle = new ValhallaOracle(IPool(_pair));
 
-    // Distribute tokens
-    swapOSForToken(SCUSD, 40 ether, false);
-    swapOSForToken(SCETH, 40 ether, false);
-    swapOSForToken(STS, 40 ether, false);
-    swapOSForToken(SHADOW, 40 ether, false);
-    swapOSForToken(X33, 40 ether, false);
-    swapOSForToken(BOO, 40 ether, false);
-    swapOSForToken(EQUAL, 40 ether, false);
-    swapOSForToken(EGGS, 40 ether, false);
-    swapOSForToken(ANON, 40 ether, false);
-    swapOSForToken(DERP, 40 ether, false);
-    swapOSForToken(GOGLZ, 40 ether, false);
-    swapOSForToken(OIL, 40 ether, false);
-    swapOSForToken(BRUSH, 40 ether, false);
+    // // add LP genesis pool
+    // _ragnarok.add(0.237268519 ether, 0, IERC20(_pair), false, 0); // VAL-OS LP 143.5k (20500/86400)
+
+    // // need to make zap
+    // _zap = new VALZapIn(address(_valhalla), OS, SHADOW_ROUTER);
+    // // vm.stopPrank();
+
+    // console.log("Valhalla deployed at:", address(_valhalla));
+    // console.log("ValhallaOracle deployed at:", address(_valhallaOracle));
+    // console.log("Pair address:", _pair);
+    // console.log("Liquidity added:", liquidity);
+
+    // // Distribute tokens
+    // swapOSForToken(SCUSD, 40 ether, false);
+    // swapOSForToken(SCETH, 40 ether, false);
+    // swapOSForToken(STS, 40 ether, false);
+    // swapOSForToken(SHADOW, 40 ether, false);
+    // swapOSForToken(X33, 40 ether, false);
+    // swapOSForToken(BOO, 40 ether, false);
+    // swapOSForToken(EQUAL, 40 ether, false);
+    // swapOSForToken(EGGS, 40 ether, false);
+    // swapOSForToken(ANON, 40 ether, false);
+    // swapOSForToken(DERP, 40 ether, false);
+    // swapOSForToken(GOGLZ, 40 ether, false);
+    // swapOSForToken(OIL, 40 ether, false);
+    // swapOSForToken(BRUSH, 40 ether, false);
 
     vm.stopBroadcast();
   }
@@ -125,4 +164,36 @@ contract AnvilScript is Script {
       block.timestamp + 3600
     );
   }
+
+  function swapWSForToken(address targetToken, uint256 amount, bool stable) internal {
+    // Create route for the swap
+    IRouter.route[] memory path = new IRouter.route[](1);
+    path[0] = IRouter.route({ from: WS, to: targetToken, stable: stable });
+
+    // Approve spending
+    IERC20(payable(WS)).approve(SHADOW_ROUTER, amount);
+
+    // Execute swap
+    IRouter(payable(SHADOW_ROUTER)).swapExactTokensForTokens(
+      amount,
+      0, // Min amount out (0 for testing)
+      path,
+      DEPLOYER,
+      block.timestamp + 3600
+    );
+  }
+
+  // function swapExactETHForTokensSupportingFeeOnTransferTokens(
+  //   uint256 amountOutMin,
+  //   route[] calldata routes,
+  //   address to,
+  //   uint256 deadline
+  // ) external payable;
+  // IRouter.route[] memory path = new IRouter.route[](1);
+  //   path[0] = IRouter.route({ from: WS, to: OS, stable: stable });
+  //   IRouter(payable(SHADOW_ROUTER)).swapExactETHForTokensSupportingFeeOnTransferTokens(
+  //     0,
+
+  //   )
+  // }
 }

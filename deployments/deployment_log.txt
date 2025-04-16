@@ -1,0 +1,30 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 146
+
+Estimated gas price: 110.000000001 gwei
+
+Estimated total gas used for script: 15788798
+
+Estimated amount required: 1.736767780015788798 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+##
+Start verification for (3) contracts
+Start verifying contract `0x6b876de1B95743Af2b8cF3d1a41Ac7cF74d93fFA` deployed on 146
+Start verifying contract `0x4597C0935dB6E3965E9321E7d820B827Fc71b7f5` deployed on 146
+Start verifying contract `0x18bc8679D673a0D9ac8245C8E45ea2b2CF3F9335` deployed on 146
+
+Transactions saved to: /Users/yetim/Work/fudgylabs/vahalla-protocol/contracts/broadcast/val_and_genesis.s.sol/146/run-latest.json
+
+Sensitive values saved to: /Users/yetim/Work/fudgylabs/vahalla-protocol/contracts/cache/val_and_genesis.s.sol/146/run-latest.json
