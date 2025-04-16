@@ -12,8 +12,8 @@ contract Valhalla is ERC20Burnable, Operator {
     using SafeMath8 for uint8;
     using SafeMath for uint256;
 
-    uint256 public constant INITIAL_DAOFUND_DISTRIBUTION = 1000 ether; // 1000 VAL
-    uint256 public constant GENESIS_DISTRIBUTION = 714000 ether; // 714k VAL for genesis pool
+    uint256 public constant INITIAL_DAOFUND_DISTRIBUTION = 15000 ether; // 1000 VAL
+    uint256 public constant GENESIS_DISTRIBUTION = 591150 ether; // 591150 VAL for genesis pool
 
     bool public rewardsDistributed = false;
 

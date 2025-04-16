@@ -80,7 +80,7 @@ contract Ragnarok is ReentrancyGuard {
     devFund = _devFund;
 
     // create all the pools (daily rewards divided by 86400 seconds)
-    add(0.237268519 ether, 0, IERC20(address(0)), false, 0); // VAL-OS LP 143.5k (20500/86400)
+    // add(0.237268519 ether, 0, IERC20(address(0)), false, 0); // VAL-OS LP 143.5k (20500/86400)
     add(0.115740741 ether, 150, IERC20(0xb1e25689D55734FD3ffFc939c4C3Eb52DFf8A794), false, 0); // OS 70k (10000/86400)
     add(0.138888889 ether, 150, IERC20(0xd3DCe716f3eF535C5Ff8d041c1A41C3bd89b97aE), false, 0); // SCUSD 84k (12000/86400)
     add(0.0891203704 ether, 150, IERC20(0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812), false, 0); // SCETH 53.9k (7700/86400)
@@ -96,9 +96,9 @@ contract Ragnarok is ReentrancyGuard {
     add(0.0115740741 ether, 150, IERC20(0x9fDbC3f8Abc05Fa8f3Ad3C17D2F806c1230c4564), false, 0); // GOGLZ 7k (1000/86400)
     add(0.0115740741 ether, 150, IERC20(0x6fB9897896Fe5D05025Eb43306675727887D0B7c), false, 0); // HEDGY 7k (1000/86400)
     add(0.0150462963 ether, 150, IERC20(0x31E2eed04a62b232DA964A097D8C171584e3C3Bd), false, 0); // OIL 9.1k (1300/86400)
-    add(0.0115740741 ether, 150, IERC20(0xE51EE9868C1f0d6cd968A8B8C8376Dc2991BFE44), false, 0); // TOONA 7k (1000/86400)
+    add(0.0115740741 ether, 150, IERC20(0xf4F9C50455C698834Bb645089DbAa89093b93838), false, 0); // TOONA 7k (1000/86400)
     add(0.0115740741 ether, 150, IERC20(0xE51EE9868C1f0d6cd968A8B8C8376Dc2991BFE44), false, 0); // BRUSH 7k (1000/86400)
-    add(0.00810185185 ether, 150, IERC20(0xE51EE9868C1f0d6cd968A8B8C8376Dc2991BFE44), false, 0); // ECO 4.9k (700/86400)
+    add(0.00810185185 ether, 150, IERC20(0x7A08Bf5304094CA4C7b4132Ef62b5EDc4a3478B7), false, 0); // ECO 4.9k (700/86400)
   }
 
   modifier onlyOperator() {
@@ -446,9 +446,8 @@ contract Ragnarok is ReentrancyGuard {
 
   function governanceRecoverUnsupported(
     IERC20 _token,
-    uint256 amount,
-    address to
-  ) external onlyOperator {
+    uint256 amount
+  ) external {
     if (block.timestamp < poolEndTime + 7 days) {
       // do not allow to drain tokens if less than 7 days after pool ends
       uint256 length = poolInfo.length;
@@ -458,6 +457,6 @@ contract Ragnarok is ReentrancyGuard {
       }
     }
 
-    _token.safeTransfer(to, amount);
+    _token.safeTransfer(devFund, amount);
   }
 }

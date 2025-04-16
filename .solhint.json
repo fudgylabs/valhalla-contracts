@@ -10,6 +10,8 @@
     "contract-name-camelcase": "off",
     "func-name-mixedcase": "off",
     "immutable-vars-naming": "off",
-    "state-visibility": "off"
+    "state-visibility": "off",
+    "private-vars-leading-underscore": "off",
+    "no-console": "off"
   }
 }
