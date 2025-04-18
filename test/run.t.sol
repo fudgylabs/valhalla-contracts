@@ -2,17 +2,20 @@
 pragma solidity ^0.8.13;
 
 import { Test, console } from "forge-std/Test.sol";
-import { Valhalla } from "../src/Valhalla.sol";
-import { ValhallaOracle, IPool } from "../src/ValhallaOracle.sol";
-import { IFactory } from "./interfaces/IFactory.sol";
-import { IPair } from "./interfaces/IPair.sol";
-import { IRouter } from "./interfaces/IRouter.sol";
-import { IWETH } from "./interfaces/IWETH.sol";
+import { Valhalla } from "@/Valhalla.sol";
+import { ValhallaOracle, IPool } from "@/ValhallaOracle.sol";
+import { IFactory } from "@/interfaces/IFactory.sol";
+import { IPair } from "@/interfaces/IPair.sol";
+import { IRouter } from "@/interfaces/IRouter.sol";
+import { IWETH } from "@/interfaces/IWETH.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Ragnarok } from "../src/distribution/Ragnarok.sol";
-import { IPairFactory } from "../src/interfaces/IPairFactory.sol"; 
-import { VALZapIn } from "../src/zap.sol";
+import { Ragnarok } from "@/distribution/Ragnarok.sol";
+import { IPairFactory } from "@/interfaces/IPairFactory.sol"; 
+import { VALZapIn } from "@/zap.sol";
+import { Boardroom } from "@/Boardroom.sol";
+import { TimelockTokens } from "@/TimelockTokens.sol";
+import { Operator } from "@/owner/Operator.sol";
 
 contract CounterTest is Test {
   // SWAPX
@@ -63,6 +66,8 @@ contract CounterTest is Test {
   ValhallaOracle public _valhallaOracle;
   Ragnarok public _ragnarok;
   VALZapIn public _zap;
+  Boardroom public _boardroom;
+  TimelockTokens public _timelockTokens;
 
   function setUp() public {
     vm.createSelectFork(RPC_URL);
@@ -80,6 +85,7 @@ contract CounterTest is Test {
 
     vm.startPrank(DEPLOYER);
     _valhalla = new Valhalla();
+    _boardroom = new Boardroom();
 
     // distribute valhalla
     _ragnarok = new Ragnarok(address(_valhalla), DEVFUND, initialTimestamp + 3600 * 2, SHADOW_VOTER);
@@ -112,6 +118,21 @@ contract CounterTest is Test {
 
     // need to make zap
     _zap = new VALZapIn(address(_valhalla), OS, SHADOW_ROUTER);
+
+    _timelockTokens = new TimelockTokens();
+
+    uint256 pairBalance = IERC20(_pair).balanceOf(DEPLOYER);
+    IERC20(_pair).approve(DEPLOYER, pairBalance);
+    IPair(_pair).transferFrom(DEPLOYER, address(_timelockTokens), pairBalance);
+
+    uint256 pairBalance2 = IERC20(_pair).balanceOf(address(_timelockTokens));
+    require(pairBalance2 > 0, "transfer balance to lock failed");
+
+    // transfer peg ownership to boardroom
+    _valhalla.transferOperator(address(_boardroom));
+
+    // renounce genesis ownership
+    _ragnarok.setOperator(address(0));
     vm.stopPrank();
   }
 

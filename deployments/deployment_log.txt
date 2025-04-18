@@ -1,4 +1,24 @@
-No files changed, compilation skipped
+Compiling 1 files with Solc 0.8.28
+Solc 0.8.28 finished in 6.28s
+Compiler run successful with warnings:
+Warning (2072): Unused local variable.
+  --> src/zap.sol:43:6:
+   |
+43 |     (uint amount0, uint swapAmount) = _getOptimalAmounts(_tokenIn, _tokenAmount);
+   |      ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/zap.sol:88:10:
+   |
+88 |     (, , uint liquidity) = IRouter(payable(SWAP_ROUTER)).addLiquidity(
+   |          ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/zap.sol:178:8:
+    |
+178 |       (bool success, ) = address(owner()).call{ value: address(this).balance }("");
+    |        ^^^^^^^^^^^^
+
 Script ran successfully.
 
 ## Setting up 1 EVM.
@@ -7,11 +27,11 @@ Script ran successfully.
 
 Chain 146
 
-Estimated gas price: 110.000000001 gwei
+Estimated gas price: 110.357142857 gwei
 
-Estimated total gas used for script: 15788798
+Estimated total gas used for script: 21548418
 
-Estimated amount required: 1.736767780015788798 ETH
+Estimated amount required: 2.378021843568350226 ETH
 
 ==========================
 
@@ -20,10 +40,11 @@ Estimated amount required: 1.736767780015788798 ETH
 
 ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
 ##
-Start verification for (3) contracts
-Start verifying contract `0x6b876de1B95743Af2b8cF3d1a41Ac7cF74d93fFA` deployed on 146
-Start verifying contract `0x4597C0935dB6E3965E9321E7d820B827Fc71b7f5` deployed on 146
-Start verifying contract `0x18bc8679D673a0D9ac8245C8E45ea2b2CF3F9335` deployed on 146
+Start verification for (4) contracts
+Start verifying contract `0x39aB3427030638DB6Ab1884a156e1BcC8c900930` deployed on 146
+Start verifying contract `0x155Ac3c46bc896697F21347beDD97b035F50e448` deployed on 146
+Start verifying contract `0x5826A0c84279503Ab5A6dC0AD401fD7872785c04` deployed on 146
+Start verifying contract `0x3161c82D67ebaFF539c0c7B60bac467b9ADD3999` deployed on 146
 
 Transactions saved to: /Users/yetim/Work/fudgylabs/vahalla-protocol/contracts/broadcast/val_and_genesis.s.sol/146/run-latest.json
 

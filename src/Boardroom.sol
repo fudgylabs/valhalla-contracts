@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -16,7 +16,7 @@ import "./interfaces/IOracle.sol";
 import "./interfaces/IMasonry.sol";
 import "./owner/Operator.sol";
 
-contract Treasury is ContractGuard, Operator {
+contract Boardroom is ContractGuard, Operator {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -38,20 +38,20 @@ contract Treasury is ContractGuard, Operator {
 
     //=================================================================// exclusions from total supply
     address[] public excludedFromTotalSupply = [
-        address(0x29D0762f7bE8409d0aC34A3595AF62E8c0120950) // SnakeGenesisRewardPool
+        address(0x79717Ca0fC65fCfaf02457d65a4F2ed5E3b69B22) // Ragnarok
     ];
 
     // core components
-    address public snake;
-    address public bsnake;
-    address public gsnake;
+    address public valhalla;
+    address public vbond;
+    address public vshare;
 
     address public masonry;
-    address public snakeOracle;
+    address public valhallaOracle;
 
     // price
-    uint256 public snakePriceOne;
-    uint256 public snakePriceCeiling;
+    uint256 public valhallaPriceOne;
+    uint256 public valhallaPriceCeiling;
 
     uint256 public seigniorageSaved;
 
@@ -64,18 +64,18 @@ contract Treasury is ContractGuard, Operator {
     uint256 public maxSupplyContractionPercent;
     uint256 public maxDebtRatioPercent;
 
-    // 14 first epochs (0.5 week) with 4.5% expansion regardless of SNAKE price
+    // 14 first epochs (0.5 week) with 4.5% expansion regardless of VAL price
     uint256 public bootstrapEpochs;
     uint256 public bootstrapSupplyExpansionPercent;
 
     /* =================== Added variables =================== */
-    uint256 public previousEpochSnakePrice;
+    uint256 public previousEpochValhallaPrice;
     uint256 public maxDiscountRate; // when purchasing bond
     uint256 public maxPremiumRate;  // when redeeming bond
     uint256 public discountPercent;
     uint256 public premiumThreshold;
     uint256 public premiumPercent;
-    uint256 public mintingFactorForPayingDebt; // print extra SNAKE during debt phase
+    uint256 public mintingFactorForPayingDebt; // print extra VAL during debt phase
 
     address public daoFund;
     uint256 public daoFundSharedPercent;
@@ -91,8 +91,8 @@ contract Treasury is ContractGuard, Operator {
 
     event Initialized(address indexed executor, uint256 at);
     event BurnedBonds(address indexed from, uint256 bondAmount);
-    event RedeemedBonds(address indexed from, uint256 snakeAmount, uint256 bondAmount);
-    event BoughtBonds(address indexed from, uint256 snakeAmount, uint256 bondAmount);
+    event RedeemedBonds(address indexed from, uint256 valhallaAmount, uint256 bondAmount);
+    event BoughtBonds(address indexed from, uint256 valhallaAmount, uint256 bondAmount);
     event TreasuryFunded(uint256 timestamp, uint256 seigniorage);
     event MasonryFunded(uint256 timestamp, uint256 seigniorage);
     event DaoFundFunded(uint256 timestamp, uint256 seigniorage);
@@ -113,14 +113,14 @@ contract Treasury is ContractGuard, Operator {
         _;
 
         epoch = epoch.add(1);
-        epochSupplyContractionLeft = (getSnakePrice() > snakePriceCeiling) ? 0 : getSnakeCirculatingSupply().mul(maxSupplyContractionPercent).div(BASIS_DIVISOR);
+        epochSupplyContractionLeft = (getValhallaPrice() > valhallaPriceCeiling) ? 0 : getValhallaCirculatingSupply().mul(maxSupplyContractionPercent).div(BASIS_DIVISOR);
     }
 
     modifier checkOperator {
         require(
-                IBasisAsset(snake).operator() == address(this) &&
-                IBasisAsset(bsnake).operator() == address(this) &&
-                IBasisAsset(gsnake).operator() == address(this) &&
+                IBasisAsset(valhalla).operator() == address(this) &&
+                IBasisAsset(vbond).operator() == address(this) &&
+                IBasisAsset(vshare).operator() == address(this) &&
                 Operator(masonry).operator() == address(this),
             "Treasury: need more permission"
         );
@@ -134,6 +134,8 @@ contract Treasury is ContractGuard, Operator {
         _;
     }
 
+    
+
     /* ========== VIEW FUNCTIONS ========== */
 
     function isInitialized() public view returns (bool) {
@@ -146,19 +148,19 @@ contract Treasury is ContractGuard, Operator {
     }
 
     // oracle
-    function getSnakePrice() public view returns (uint256 snakePrice) {
-        try IOracle(snakeOracle).consult(snake, 1e18) returns (uint256 price) {
+    function getValhallaPrice() public view returns (uint256 valhallaPrice) {
+        try IOracle(valhallaOracle).consult(valhalla, 1e18) returns (uint256 price) {
             return uint256(price);
         } catch {
-            revert("Treasury: failed to consult SNAKE price from the oracle");
+            revert("Treasury: failed to consult VAL price from the oracle");
         }
     }
 
-    function getSnakeUpdatedPrice() public view returns (uint256 _snakePrice) {
-        try IOracle(snakeOracle).twap(snake, 1e18) returns (uint256 price) {
+    function getValhallaUpdatedPrice() public view returns (uint256 _valhallaPrice) {
+        try IOracle(valhallaOracle).twap(valhalla, 1e18) returns (uint256 price) {
             return uint256(price);
         } catch {
-            revert("Treasury: failed to consult SNAKE price from the oracle");
+            revert("Treasury: failed to consult VAL price from the oracle");
         }
     }
 
@@ -167,41 +169,41 @@ contract Treasury is ContractGuard, Operator {
         return seigniorageSaved;
     }
 
-    function getBurnableSnakeLeft() public view returns (uint256 _burnableSnakeLeft) {
-        uint256 _snakePrice = getSnakePrice();
-        if (_snakePrice <= snakePriceOne) {
-            uint256 _snakeSupply = getSnakeCirculatingSupply();
-            uint256 _bondMaxSupply = _snakeSupply.mul(maxDebtRatioPercent).div(BASIS_DIVISOR);
-            uint256 _bondSupply = IERC20(bsnake).totalSupply();
+    function getBurnableValhallaLeft() public view returns (uint256 _burnableValhallaLeft) {
+        uint256 _valhallaPrice = getValhallaPrice();
+        if (_valhallaPrice <= valhallaPriceOne) {
+            uint256 _valhallaSupply = getValhallaCirculatingSupply();
+            uint256 _bondMaxSupply = _valhallaSupply.mul(maxDebtRatioPercent).div(BASIS_DIVISOR);
+            uint256 _bondSupply = IERC20(vbond).totalSupply();
             if (_bondMaxSupply > _bondSupply) {
                 uint256 _maxMintableBond = _bondMaxSupply.sub(_bondSupply);
-                uint256 _maxBurnableSnake = _maxMintableBond.mul(_snakePrice).div(1e18);
-                _burnableSnakeLeft = Math.min(epochSupplyContractionLeft, _maxBurnableSnake);
+                uint256 _maxBurnableValhalla = _maxMintableBond.mul(_valhallaPrice).div(1e18);
+                _burnableValhallaLeft = Math.min(epochSupplyContractionLeft, _maxBurnableValhalla);
             }
         }
     }
 
     function getRedeemableBonds() public view returns (uint256 _redeemableBonds) {
-        uint256 _snakePrice = getSnakePrice();
-        if (_snakePrice > snakePriceCeiling) {
-            uint256 _totalSnake = IERC20(snake).balanceOf(address(this));
+        uint256 _valhallaPrice = getValhallaPrice();
+        if (_valhallaPrice > valhallaPriceCeiling) {
+            uint256 _totalValhalla = IERC20(valhalla).balanceOf(address(this));
             uint256 _rate = getBondPremiumRate();
             if (_rate > 0) {
-                _redeemableBonds = _totalSnake.mul(1e18).div(_rate);
+                _redeemableBonds = _totalValhalla.mul(1e18).div(_rate);
             }
         }
     }
 
     function getBondDiscountRate() public view returns (uint256 _rate) {
-        uint256 _snakePrice = getSnakePrice();
-        if (_snakePrice <= snakePriceOne) {
+        uint256 _valhallaPrice = getValhallaPrice();
+        if (_valhallaPrice <= valhallaPriceOne) {
             if (discountPercent == 0) {
                 // no discount
-                _rate = snakePriceOne;
+                _rate = valhallaPriceOne;
             } else {
-                uint256 _bondAmount = snakePriceOne.mul(1e18).div(_snakePrice); // to burn 1 SNAKE
-                uint256 _discountAmount = _bondAmount.sub(snakePriceOne).mul(discountPercent).div(BASIS_DIVISOR);
-                _rate = snakePriceOne.add(_discountAmount);
+                uint256 _bondAmount = valhallaPriceOne.mul(1e18).div(_valhallaPrice); // to burn 1 VAL
+                uint256 _discountAmount = _bondAmount.sub(valhallaPriceOne).mul(discountPercent).div(BASIS_DIVISOR);
+                _rate = valhallaPriceOne.add(_discountAmount);
                 if (maxDiscountRate > 0 && _rate > maxDiscountRate) {
                     _rate = maxDiscountRate;
                 }
@@ -210,19 +212,19 @@ contract Treasury is ContractGuard, Operator {
     }
 
     function getBondPremiumRate() public view returns (uint256 _rate) {
-        uint256 _snakePrice = getSnakePrice();
-        if (_snakePrice > snakePriceCeiling) {
-            uint256 _snakePricePremiumThreshold = snakePriceOne.mul(premiumThreshold).div(100);
-            if (_snakePrice >= _snakePricePremiumThreshold) {
+        uint256 _valhallaPrice = getValhallaPrice();
+        if (_valhallaPrice > valhallaPriceCeiling) {
+            uint256 _valhallaPricePremiumThreshold = valhallaPriceOne.mul(premiumThreshold).div(100);
+            if (_valhallaPrice >= _valhallaPricePremiumThreshold) {
                 //Price > 1.10
-                uint256 _premiumAmount = _snakePrice.sub(snakePriceOne).mul(premiumPercent).div(BASIS_DIVISOR);
-                _rate = snakePriceOne.add(_premiumAmount);
+                uint256 _premiumAmount = _valhallaPrice.sub(valhallaPriceOne).mul(premiumPercent).div(BASIS_DIVISOR);
+                _rate = valhallaPriceOne.add(_premiumAmount);
                 if (maxPremiumRate > 0 && _rate > maxPremiumRate) {
                     _rate = maxPremiumRate;
                 }
             } else {
                 // no premium bonus
-                _rate = snakePriceOne;
+                _rate = valhallaPriceOne;
             }
         }
     }
@@ -230,23 +232,23 @@ contract Treasury is ContractGuard, Operator {
     /* ========== GOVERNANCE ========== */
 
     function initialize(
-        address _snake,
-        address _bsnake,
-        address _gsnake,
-        address _snakeOracle,
+        address _valhalla,
+        address _vbond,
+        address _vshare,
+        address _valhallaOracle,
         address _masonry,
         uint256 _startTime
     ) public notInitialized onlyOperator {
-        snake = _snake;
-        bsnake = _bsnake;
-        gsnake = _gsnake;
-        snakeOracle = _snakeOracle;
+        valhalla = _valhalla;
+        vbond = _vbond;
+        vshare = _vshare;
+        valhallaOracle = _valhallaOracle;
         masonry = _masonry;
         startTime = _startTime;
 
-        snakePriceOne = 10 ** 18;
-        // snakePriceCeiling = 1000300000000000000; // 1.003 as its stable pool
-        snakePriceCeiling = snakePriceOne.mul(101).div(100); // even if its stable we aim to get 1.01
+        valhallaPriceOne = 10 ** 18;
+        // valhallaPriceCeiling = 1000300000000000000; // 1.003 as its stable pool
+        valhallaPriceCeiling = valhallaPriceOne.mul(101).div(100); // even if its stable we aim to get 1.01
 
         // Dynamic max expansion percent
         supplyTiers = [0 ether, 600000 ether, 750000 ether, 1000000 ether, 1200000 ether, 1500000 ether, 2000000 ether];
@@ -256,8 +258,8 @@ contract Treasury is ContractGuard, Operator {
 
         bondDepletionFloorPercent = 100000; // 100% of Bond supply for depletion floor
         seigniorageExpansionFloorPercent = 35000; // At least 35% of expansion reserved for masonry
-        maxSupplyContractionPercent = 10000; // Upto 10.0% supply for contraction (to burn SNAKE and mint bsnake)
-        maxDebtRatioPercent = 35000; // Upto 35% supply of bsnake to purchase
+        maxSupplyContractionPercent = 10000; // Upto 10.0% supply for contraction (to burn VAL and mint vbond)
+        maxDebtRatioPercent = 35000; // Upto 35% supply of vbond to purchase
 
         premiumThreshold = 1100;
         premiumPercent = 70000;
@@ -267,7 +269,7 @@ contract Treasury is ContractGuard, Operator {
         bootstrapSupplyExpansionPercent = 150; // 0.15%
 
         // set seigniorageSaved to it's balance
-        seigniorageSaved = IERC20(snake).balanceOf(address(this));
+        seigniorageSaved = IERC20(valhalla).balanceOf(address(this));
 
         initialized = true;
         emit Initialized(msg.sender, block.number);
@@ -285,13 +287,13 @@ contract Treasury is ContractGuard, Operator {
         masonry = _masonry;
     }
 
-    function setSnakeOracle(address _snakeOracle) external onlyOperator {
-        snakeOracle = _snakeOracle;
+    function setValhallaOracle(address _valhallaOracle) external onlyOperator {
+        valhallaOracle = _valhallaOracle;
     }
 
-    function setSnakePriceCeiling(uint256 _snakePriceCeiling) external onlyOperator {
-        require(_snakePriceCeiling >= snakePriceOne && _snakePriceCeiling <= snakePriceOne.mul(120).div(100), "out of range"); // [$1.0, $1.2]
-        snakePriceCeiling = _snakePriceCeiling;
+    function setValhallaPriceCeiling(uint256 _valhallaPriceCeiling) external onlyOperator {
+        require(_valhallaPriceCeiling >= valhallaPriceOne && _valhallaPriceCeiling <= valhallaPriceOne.mul(120).div(100), "out of range"); // [$1.0, $1.2]
+        valhallaPriceCeiling = _valhallaPriceCeiling;
     }
 
     function setMaxSupplyExpansionPercents(uint256 _maxSupplyExpansionPercent) external onlyOperator {
@@ -381,7 +383,7 @@ contract Treasury is ContractGuard, Operator {
     }
 
     function setPremiumThreshold(uint256 _premiumThreshold) external onlyOperator {
-        require(_premiumThreshold >= snakePriceCeiling, "_premiumThreshold exceeds snakePriceCeiling");
+        require(_premiumThreshold >= valhallaPriceCeiling, "_premiumThreshold exceeds valhallaPriceCeiling");
         require(_premiumThreshold <= 1500, "_premiumThreshold is higher than 1.5");
         premiumThreshold = _premiumThreshold;
     }
@@ -398,110 +400,110 @@ contract Treasury is ContractGuard, Operator {
 
     /* ========== MUTABLE FUNCTIONS ========== */
 
-    function _updateSnakePrice() internal {
-        try IOracle(snakeOracle).update() {} catch {}
+    function _updateValhallaPrice() internal {
+        try IOracle(valhallaOracle).update() {} catch {}
     }
 
-    function getSnakeCirculatingSupply() public view returns (uint256) {
-        IERC20 snakeErc20 = IERC20(snake);
-        uint256 totalSupply = snakeErc20.totalSupply();
+    function getValhallaCirculatingSupply() public view returns (uint256) {
+        IERC20 valhallaErc20 = IERC20(valhalla);
+        uint256 totalSupply = valhallaErc20.totalSupply();
         uint256 balanceExcluded = 0;
         for (uint8 entryId = 0; entryId < excludedFromTotalSupply.length; ++entryId) {
-            balanceExcluded = balanceExcluded.add(snakeErc20.balanceOf(excludedFromTotalSupply[entryId]));
+            balanceExcluded = balanceExcluded.add(valhallaErc20.balanceOf(excludedFromTotalSupply[entryId]));
         }
         return totalSupply.sub(balanceExcluded);
     }
 
-    function buyBonds(uint256 _snakeAmount, uint256 targetPrice) external onlyOneBlock checkCondition checkOperator {
-        require(_snakeAmount > 0, "Treasury: cannot purchase bonds with zero amount");
+    function buyBonds(uint256 _valhallaAmount, uint256 targetPrice) external onlyOneBlock checkCondition checkOperator {
+        require(_valhallaAmount > 0, "Treasury: cannot purchase bonds with zero amount");
 
-        uint256 snakePrice = getSnakePrice();
-        require(snakePrice == targetPrice, "Treasury: SNAKE price moved");
+        uint256 valhallaPrice = getValhallaPrice();
+        require(valhallaPrice == targetPrice, "Treasury: VAL price moved");
         require(
-            snakePrice < snakePriceOne, // price < $1
-            "Treasury: snakePrice not eligible for bond purchase"
+        valhallaPrice <valhallaPriceOne, // price < $1
+            "Treasury:valhallaPrice not eligible for bond purchase"
         );
 
-        require(_snakeAmount <= epochSupplyContractionLeft, "Treasury: not enough bond left to purchase");
+        require(_valhallaAmount <= epochSupplyContractionLeft, "Treasury: not enough bond left to purchase");
 
         uint256 _rate = getBondDiscountRate();
         require(_rate > 0, "Treasury: invalid bond rate");
 
-        uint256 _bondAmount = _snakeAmount.mul(_rate).div(1e18);
-        uint256 snakeSupply = getSnakeCirculatingSupply();
-        uint256 newBondSupply = IERC20(bsnake).totalSupply().add(_bondAmount);
-        require(newBondSupply <= snakeSupply.mul(maxDebtRatioPercent).div(BASIS_DIVISOR), "over max debt ratio");
+        uint256 _bondAmount = _valhallaAmount.mul(_rate).div(1e18);
+        uint256 valhallaSupply = getValhallaCirculatingSupply();
+        uint256 newBondSupply = IERC20(vbond).totalSupply().add(_bondAmount);
+        require(newBondSupply <= valhallaSupply.mul(maxDebtRatioPercent).div(BASIS_DIVISOR), "over max debt ratio");
 
-        IBasisAsset(snake).burnFrom(msg.sender, _snakeAmount);
-        IBasisAsset(bsnake).mint(msg.sender, _bondAmount);
+        IBasisAsset(valhalla).burnFrom(msg.sender, _valhallaAmount);
+        IBasisAsset(vbond).mint(msg.sender, _bondAmount);
 
-        epochSupplyContractionLeft = epochSupplyContractionLeft.sub(_snakeAmount);
-        _updateSnakePrice();
+        epochSupplyContractionLeft = epochSupplyContractionLeft.sub(_valhallaAmount);
+        _updateValhallaPrice();
 
-        emit BoughtBonds(msg.sender, _snakeAmount, _bondAmount);
+        emit BoughtBonds(msg.sender, _valhallaAmount, _bondAmount);
     }
 
     function redeemBonds(uint256 _bondAmount, uint256 targetPrice) external onlyOneBlock checkCondition checkOperator {
         require(_bondAmount > 0, "Treasury: cannot redeem bonds with zero amount");
 
-        uint256 snakePrice = getSnakePrice();
-        require(snakePrice == targetPrice, "Treasury: SNAKE price moved");
+        uint256 valhallaPrice = getValhallaPrice();
+        require(valhallaPrice == targetPrice, "Treasury: VAL price moved");
         require(
-            snakePrice > snakePriceCeiling, // price > $1.01
-            "Treasury: snakePrice not eligible for bond purchase"
+            valhallaPrice > valhallaPriceCeiling, // price > $1.01
+            "Treasury: valhallaPrice not eligible for bond purchase"
         );
 
         uint256 _rate = getBondPremiumRate();
         require(_rate > 0, "Treasury: invalid bond rate");
 
-        uint256 _snakeAmount = _bondAmount.mul(_rate).div(1e18);
-        require(IERC20(snake).balanceOf(address(this)) >= _snakeAmount, "Treasury: treasury has no more budget");
+        uint256 _valhallaAmount = _bondAmount.mul(_rate).div(1e18);
+        require(IERC20(valhalla).balanceOf(address(this)) >= _valhallaAmount, "Treasury: treasury has no more budget");
 
-        seigniorageSaved = seigniorageSaved.sub(Math.min(seigniorageSaved, _snakeAmount));
+        seigniorageSaved = seigniorageSaved.sub(Math.min(seigniorageSaved, _valhallaAmount));
 
-        IBasisAsset(bsnake).burnFrom(msg.sender, _bondAmount);
-        IERC20(snake).safeTransfer(msg.sender, _snakeAmount);
+        IBasisAsset(vbond).burnFrom(msg.sender, _bondAmount);
+        IERC20(valhalla).safeTransfer(msg.sender, _valhallaAmount);
 
-        _updateSnakePrice();
+        _updateValhallaPrice();
 
-        emit RedeemedBonds(msg.sender, _snakeAmount, _bondAmount);
+        emit RedeemedBonds(msg.sender, _valhallaAmount, _bondAmount);
     }
 
     function _sendToMasonry(uint256 _amount) internal {
-        IBasisAsset(snake).mint(address(this), _amount);
+        IBasisAsset(valhalla).mint(address(this), _amount);
 
         uint256 _daoFundSharedAmount = 0;
         if (daoFundSharedPercent > 0) {
             _daoFundSharedAmount = _amount.mul(daoFundSharedPercent).div(BASIS_DIVISOR);
-            IERC20(snake).transfer(daoFund, _daoFundSharedAmount);
+            IERC20(valhalla).transfer(daoFund, _daoFundSharedAmount);
             emit DaoFundFunded(block.timestamp, _daoFundSharedAmount);
         }
 
         uint256 _devFundSharedAmount = 0;
         if (devFundSharedPercent > 0) {
             _devFundSharedAmount = _amount.mul(devFundSharedPercent).div(BASIS_DIVISOR);
-            IERC20(snake).transfer(devFund, _devFundSharedAmount);
+            IERC20(valhalla).transfer(devFund, _devFundSharedAmount);
             emit DevFundFunded(block.timestamp, _devFundSharedAmount);
         }
 
         uint256 _teamFundSharedAmount = 0;
         if (teamFundSharedPercent > 0) {
             _teamFundSharedAmount = _amount.mul(teamFundSharedPercent).div(BASIS_DIVISOR);
-            IERC20(snake).transfer(teamFund, _teamFundSharedAmount);
+            IERC20(valhalla).transfer(teamFund, _teamFundSharedAmount);
             emit TeamFundFunded(block.timestamp, _teamFundSharedAmount);
         }
 
         _amount = _amount.sub(_daoFundSharedAmount).sub(_devFundSharedAmount).sub(_teamFundSharedAmount);
 
-        IERC20(snake).safeApprove(masonry, 0);
-        IERC20(snake).safeApprove(masonry, _amount);
+        IERC20(valhalla).safeApprove(masonry, 0);
+        IERC20(valhalla).safeApprove(masonry, _amount);
         IMasonry(masonry).allocateSeigniorage(_amount);
         emit MasonryFunded(block.timestamp, _amount);
     }
 
-    function _calculateMaxSupplyExpansionPercent(uint256 _snakeSupply) internal returns (uint256) {
+    function _calculateMaxSupplyExpansionPercent(uint256 _valhallaSupply) internal returns (uint256) {
         for (uint8 tierId = 6; tierId >= 0; --tierId) {
-            if (_snakeSupply >= supplyTiers[tierId]) {
+            if (_valhallaSupply >= supplyTiers[tierId]) {
                 maxSupplyExpansionPercent = maxExpansionTiers[tierId];
                 break;
             }
@@ -510,29 +512,29 @@ contract Treasury is ContractGuard, Operator {
     }
 
     function allocateSeigniorage() external onlyOneBlock checkCondition checkEpoch checkOperator {
-        _updateSnakePrice();
-        previousEpochSnakePrice = getSnakePrice();
-        uint256 snakeSupply = getSnakeCirculatingSupply().sub(seigniorageSaved);
+        _updateValhallaPrice();
+        previousEpochValhallaPrice = getValhallaPrice();
+        uint256 valhallaSupply = getValhallaCirculatingSupply().sub(seigniorageSaved);
         if (epoch < bootstrapEpochs) {
             // 14 first epochs with 6% expansion
-            _sendToMasonry(snakeSupply.mul(bootstrapSupplyExpansionPercent).div(BASIS_DIVISOR));
+            _sendToMasonry(valhallaSupply.mul(bootstrapSupplyExpansionPercent).div(BASIS_DIVISOR));
         } else {
-            if (previousEpochSnakePrice > snakePriceCeiling) {
-                // Expansion ($SNAKE Price > 1 $FTM): there is some seigniorage to be allocated
-                uint256 bondSupply = IERC20(bsnake).totalSupply();
-                uint256 _percentage = previousEpochSnakePrice.sub(snakePriceOne);
+            if (previousEpochValhallaPrice > valhallaPriceCeiling) {
+                // Expansion ($VAL Price > 1 $FTM): there is some seigniorage to be allocated
+                uint256 bondSupply = IERC20(vbond).totalSupply();
+                uint256 _percentage = previousEpochValhallaPrice.sub(valhallaPriceOne);
                 uint256 _savedForBond;
                 uint256 _savedForMasonry;
-                uint256 _mse = _calculateMaxSupplyExpansionPercent(snakeSupply).mul(1e13);
+                uint256 _mse = _calculateMaxSupplyExpansionPercent(valhallaSupply).mul(1e13);
                 if (_percentage > _mse) {
                     _percentage = _mse;
                 }
                 if (seigniorageSaved >= bondSupply.mul(bondDepletionFloorPercent).div(BASIS_DIVISOR)) {
                     // saved enough to pay debt, mint as usual rate
-                    _savedForMasonry = snakeSupply.mul(_percentage).div(1e18);
+                    _savedForMasonry = valhallaSupply.mul(_percentage).div(1e18);
                 } else {
                     // have not saved enough to pay debt, mint more
-                    uint256 _seigniorage = snakeSupply.mul(_percentage).div(1e18);
+                    uint256 _seigniorage = valhallaSupply.mul(_percentage).div(1e18);
                     _savedForMasonry = _seigniorage.mul(seigniorageExpansionFloorPercent).div(BASIS_DIVISOR);
                     _savedForBond = _seigniorage.sub(_savedForMasonry);
                     if (mintingFactorForPayingDebt > 0) {
@@ -544,7 +546,7 @@ contract Treasury is ContractGuard, Operator {
                 }
                 if (_savedForBond > 0) {
                     seigniorageSaved = seigniorageSaved.add(_savedForBond);
-                    IBasisAsset(snake).mint(address(this), _savedForBond);
+                    IBasisAsset(valhalla).mint(address(this), _savedForBond);
                     emit TreasuryFunded(block.timestamp, _savedForBond);
                 }
             }
@@ -558,9 +560,9 @@ contract Treasury is ContractGuard, Operator {
         address _to
     ) external onlyOperator {
         // do not allow to drain core tokens
-        require(address(_token) != address(snake), "snake");
-        require(address(_token) != address(bsnake), "bond");
-        require(address(_token) != address(gsnake), "share");
+        require(address(_token) != address(valhalla), "valhalla");
+        require(address(_token) != address(vbond), "bond");
+        require(address(_token) != address(vshare), "share");
         _token.safeTransfer(_to, _amount);
     }
 

@@ -12,6 +12,8 @@
     "immutable-vars-naming": "off",
     "state-visibility": "off",
     "private-vars-leading-underscore": "off",
-    "no-console": "off"
+    "no-console": "off",
+    "gas-custom-errors": "off",
+    "const-name-snakecase": "off"
   }
 }

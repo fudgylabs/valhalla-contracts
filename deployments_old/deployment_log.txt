@@ -1,0 +1,39 @@
+Compiling 7 files with Solc 0.8.28
+Solc 0.8.28 finished in 3.87s
+Compiler run successful with warnings:
+Warning (2072): Unused local variable.
+  --> src/zap.sol:43:6:
+   |
+43 |     (uint amount0, uint swapAmount) = _getOptimalAmounts(_tokenIn, _tokenAmount);
+   |      ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/zap.sol:88:10:
+   |
+88 |     (, , uint liquidity) = IRouter(payable(SWAP_ROUTER)).addLiquidity(
+   |          ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/zap.sol:178:8:
+    |
+178 |       (bool success, ) = address(owner()).call{ value: address(this).balance }("");
+    |        ^^^^^^^^^^^^
+
+Traces:
+  [5900746] → new ValAndGenesisScript@0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519
+    └─ ← [Return] 29357 bytes of code
+
+  [123] ValAndGenesisScript::setUp()
+    └─ ← [Stop] 
+
+  [1293705] ValAndGenesisScript::run()
+    ├─ [0] VM::startBroadcast()
+    │   └─ ← [Return] 
+    ├─ [1144199] → new Valhalla@0x8b98A475fC70c270B0b285C950acDe0B426456DA
+    │   ├─ emit OwnershipTransferred(previousOwner: 0x0000000000000000000000000000000000000000, newOwner: 0x04301b0c3bC192C28DD3CAF345C4aE6E979EC040)
+    │   ├─ emit OperatorTransferred(previousOperator: 0x0000000000000000000000000000000000000000, newOperator: 0x04301b0c3bC192C28DD3CAF345C4aE6E979EC040)
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: 0x04301b0c3bC192C28DD3CAF345C4aE6E979EC040, value: 200000000000000000000 [2e20])
+    │   └─ ← [Return] 5023 bytes of code
+    ├─ [71386] → new <unknown>@0x79717Ca0fC65fCfaf02457d65a4F2ed5E3b69B22
+    │   └─ ← [Revert] revert: pool cant be started in the past
+    └─ ← [Revert] revert: pool cant be started in the past

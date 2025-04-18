@@ -9,9 +9,9 @@ else
 fi
 
 # Check required environment variables
-if [ -z "$SONIC_RPC" ] || [ -z "$SONIC_ETHERSCAN_API" ] || [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
+if [ -z "$SONIC_RPC" ] || [ -z "$SONIC_ETHERSCAN_ENDPOINT" ] || [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
   echo "Error: Missing required environment variables. Please check your .env file."
-  echo "Required: SONIC_RPC, SONIC_ETHERSCAN_API, DEPLOYER_PRIVATE_KEY"
+  echo "Required: SONIC_RPC, SONIC_ETHERSCAN_ENDPOINT, DEPLOYER_PRIVATE_KEY"
   exit 1
 fi
 
@@ -29,8 +29,8 @@ DEPLOYMENT_OUTPUT=$(forge script script/deploy/val_and_genesis.s.sol:ValAndGenes
   --via-ir \
   --slow \
   --verify \
-  --etherscan-api-key $SONIC_ETHERSCAN_API \
-  --verifier custom
+  --etherscan-api-key $SONIC_ETHERSCAN_ENDPOINT \
+  --verifier custom \
   -vvv)
 
 # Save the full deployment output to a log file
@@ -56,7 +56,7 @@ extract_address() {
 VALHALLA_ADDRESS=$(extract_address "Valhalla")
 RAGNAROK_ADDRESS=$(extract_address "Ragnarok")
 ZAP_ADDRESS=$(extract_address "VALZapIn")
-PAIR_ADDRESS=$(extract_address "pair")
+# PAIR_ADDRESS=$(extract_address "pair")
 
 # Create JSON files with contract addresses
 cat > deployments/valhalla.json << EOF
@@ -86,14 +86,14 @@ cat > deployments/zap.json << EOF
 }
 EOF
 
-cat > deployments/pair.json << EOF
-{
-  "name": "VAL-OS Pair",
-  "address": "$PAIR_ADDRESS",
-  "network": "sonic",
-  "deploymentTimestamp": "$(date +%s)"
-}
-EOF
+# cat > deployments/pair.json << EOF
+# {
+#   "name": "VAL-OS Pair",
+#   "address": "$PAIR_ADDRESS",
+#   "network": "sonic",
+#   "deploymentTimestamp": "$(date +%s)"
+# }
+# EOF
 
 # Create a consolidated JSON file with all addresses
 cat > deployments/all_contracts.json << EOF
@@ -103,8 +103,7 @@ cat > deployments/all_contracts.json << EOF
   "contracts": {
     "Valhalla": "$VALHALLA_ADDRESS",
     "Ragnarok": "$RAGNAROK_ADDRESS",
-    "VALZapIn": "$ZAP_ADDRESS",
-    "VAL_OS_Pair": "$PAIR_ADDRESS"
+    "VALZapIn": "$ZAP_ADDRESS"
   }
 }
 EOF
@@ -124,7 +123,7 @@ verify_contract() {
     --watch \
     --constructor-args $constructor_args \
     --verifier etherescan \
-    --verifier-url $SONIC_ETHERSCAN_ENDPOINT?$SONIC_ETHERSCAN_API \
+    --verifier-url $SONIC_ETHERSCAN_ENDPOINT?$ETHERSCAN_API_KEY \
     --via-ir
     $address \
     src/$contract_name.sol:$contract_name
@@ -154,6 +153,6 @@ echo "=== Deployment Summary ==="
 echo "Valhalla: $VALHALLA_ADDRESS"
 echo "Ragnarok: $RAGNAROK_ADDRESS"
 echo "VALZapIn: $ZAP_ADDRESS"
-echo "VAL-OS Pair: $PAIR_ADDRESS"
+# echo "VAL-OS Pair: $PAIR_ADDRESS"
 echo "Deployment artifacts saved to ./deployments/"
 echo "=========================="

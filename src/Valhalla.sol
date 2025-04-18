@@ -12,7 +12,7 @@ contract Valhalla is ERC20Burnable, Operator {
     using SafeMath8 for uint8;
     using SafeMath for uint256;
 
-    uint256 public constant INITIAL_DAOFUND_DISTRIBUTION = 15000 ether; // 1000 VAL
+    uint256 public constant INITIAL_DAOFUND_DISTRIBUTION = 1000 ether; // 1000 VAL
     uint256 public constant GENESIS_DISTRIBUTION = 591150 ether; // 591150 VAL for genesis pool
 
     bool public rewardsDistributed = false;
@@ -23,7 +23,7 @@ contract Valhalla is ERC20Burnable, Operator {
     /**
      * @notice Constructs the VAL ERC-20 contract.
      */
-    constructor() ERC20("VAL", "VAL") {
+    constructor() ERC20("Valhalla", "VAL") {
         // Mints 200 VAL to contract creator for initial pool setup
 
         _mint(msg.sender, 200 ether);
