@@ -16,7 +16,7 @@ import { IRouter } from "../../src/interfaces/IRouter.sol";
 // import "../src/interfaces/IRouter.sol";
 // import "../src/interfaces/IPool.sol";
 
-contract ValAndGenesisScript is Script {
+contract AddLpScript is Script {
   Valhalla public _valhalla;
   Ragnarok public _ragnarok;
   address public _pair;
@@ -42,46 +42,19 @@ contract ValAndGenesisScript is Script {
   function run() public {
     vm.startBroadcast();
 
-    // mint valhalla
-    _valhalla = new Valhalla();
-
-    // deploy genesis
-    _ragnarok = new Ragnarok(
-      address(_valhalla),
-      DEVFUND,
-      1745402401,
-      SHADOW_VOTER
+    IERC20(0xE99b3483f07AdDad6a2455e84bfcb5260480Fe1F).approve(SHADOW_ROUTER, 30 ether);
+    IERC20(OS).approve(SHADOW_ROUTER, 30 ether);
+    (uint amountA, uint amountB, uint liquidity) = IRouter(payable(SHADOW_ROUTER)).addLiquidity(
+      0xE99b3483f07AdDad6a2455e84bfcb5260480Fe1F,
+      OS,
+      true,
+      30 ether,
+      30 ether,
+      0,
+      0,
+      0xcEFce8C7FC410d0B9c9cd50cC5655302f8662E2e,
+      block.timestamp + 600
     );
-
-    _boardroom = new Boardroom();
-
-    // distribute valhalla
-    _valhalla.distributeReward(DEVFUND, address(_ragnarok));
-
-    // create VAL-OS LP pool
-    _pair = IPairFactory(SHADOW_PAIR_FACTORY).createPair(address(_valhalla), OS, true);
-
-    // add LP pool to genesis
-    // add(0.237268519 ether, 0, IERC20(address(0)), false, 0); // VAL-OS LP 143.5k (20500/86400)
-    // _ragnarok.add(0.237268519 ether, 0, IERC20(_pair), false, 0);
-    _ragnarok.add(0.237268519 ether, 0, IERC20(_pair), false, 0); 
-
-    // deploy zap
-    _zap = new VALZapIn(address(_valhalla), OS, SHADOW_ROUTER);
-
-    // _timelockTokens = new TimelockTokens();
-
-    // (uint amountA, uint amountB, uint liquidity) = IRouter(payable(SHADOW_ROUTER)).addLiquidity(
-    //   address(_valhalla),
-    //   OS,
-    //   true,
-    //   30 ether,
-    //   30 ether,
-    //   0,
-    //   0,
-    //   0xcEFce8C7FC410d0B9c9cd50cC5655302f8662E2e,
-    //   block.timestamp + 600
-    // );
     // require(amountA > 0, "amountA liquidity not changed");
     // require(amountB > 0, "amountB liquidity not changed");
 

@@ -452,7 +452,7 @@ contract StrategySnake is IStrategy, Ownable, ReentrancyGuard, Pausable {
     totalEarned = totalEarned.add(exchangeRate(earnedAddress, WS, earnedAmount));
 
     // track quote liquidity of pair
-    (uint256 amountA, uint256 amountB, ) = IRouter(dexRouterAddress).quoteAddLiquidity(
+    (uint256 amountA, uint256 amountB, ) = IRouter(payable(dexRouterAddress)).quoteAddLiquidity(
       token0Address,
       token1Address,
       stable,
@@ -505,7 +505,7 @@ contract StrategySnake is IStrategy, Ownable, ReentrancyGuard, Pausable {
     address _outputToken,
     uint256 _tokenAmount
   ) public view returns (uint256) {
-    uint256[] memory amounts = IRouter(dexRouterAddress).getAmountsOut(
+    uint256[] memory amounts = IRouter(payable(dexRouterAddress)).getAmountsOut(
       _tokenAmount,
       tokenRoutes[_inputToken][_outputToken]
     );
@@ -563,10 +563,10 @@ contract StrategySnake is IStrategy, Ownable, ReentrancyGuard, Pausable {
   }
 
   function setMainPaths(
-    IRouter.Route[] memory _earnedToToken0Path,
-    IRouter.Route[] memory _earnedToToken1Path,
-    IRouter.Route[] memory _earnedToWSPath,
-    IRouter.Route[] memory _token0ToToken1Path
+    IRouter.route[] memory _earnedToToken0Path,
+    IRouter.route[] memory _earnedToToken1Path,
+    IRouter.route[] memory _earnedToWSPath,
+    IRouter.route[] memory _token0ToToken1Path
   ) external onlyOwner {
     setTokenRoute(earnedAddress, token0Address, _earnedToToken0Path);
     setTokenRoute(earnedAddress, token1Address, _earnedToToken1Path);
@@ -574,7 +574,7 @@ contract StrategySnake is IStrategy, Ownable, ReentrancyGuard, Pausable {
     setTokenRoute(token0Address, token1Address, _token0ToToken1Path);
   }
 
-  function setTokenRoute(address from, address to, IRouter.Route[] memory routes) public onlyOwner {
+  function setTokenRoute(address from, address to, IRouter.route[] memory routes) public onlyOwner {
     delete tokenRoutes[from][to];
     for (uint256 i = 0; i < routes.length; i++) {
       tokenRoutes[from][to].push(routes[i]);
@@ -584,7 +584,7 @@ contract StrategySnake is IStrategy, Ownable, ReentrancyGuard, Pausable {
   function _swapTokenToS(address _inputToken, uint256 _amount, address to) internal {
     increaseAllowance(_inputToken, dexRouterAddress, _amount);
     if (_inputToken != WS) {
-      IRouter(dexRouterAddress).swapExactTokensForETH(
+      IRouter(payable(dexRouterAddress)).swapExactTokensForETH(
         _amount,
         0,
         tokenRoutes[_inputToken][WS],
@@ -602,7 +602,7 @@ contract StrategySnake is IStrategy, Ownable, ReentrancyGuard, Pausable {
   ) internal {
     increaseAllowance(_inputToken, dexRouterAddress, _amount);
     if (_inputToken != _outputToken) {
-      IRouter(dexRouterAddress).swapExactTokensForTokens(
+      IRouter(payable(dexRouterAddress)).swapExactTokensForTokens(
         _amount,
         0,
         tokenRoutes[_inputToken][_outputToken],
@@ -621,7 +621,7 @@ contract StrategySnake is IStrategy, Ownable, ReentrancyGuard, Pausable {
   ) internal {
     increaseAllowance(_tokenA, dexRouterAddress, _amountADesired);
     increaseAllowance(_tokenB, dexRouterAddress, _amountBDesired);
-    IRouter(dexRouterAddress).addLiquidity(
+    IRouter(payable(dexRouterAddress)).addLiquidity(
       _tokenA,
       _tokenB,
       _stable,

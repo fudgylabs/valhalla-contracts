@@ -16,7 +16,7 @@ import { IRouter } from "../../src/interfaces/IRouter.sol";
 // import "../src/interfaces/IRouter.sol";
 // import "../src/interfaces/IPool.sol";
 
-contract ValAndGenesisScript is Script {
+contract GenesisScript is Script {
   Valhalla public _valhalla;
   Ragnarok public _ragnarok;
   address public _pair;
@@ -37,65 +37,23 @@ contract ValAndGenesisScript is Script {
   address constant WS = 0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38;
   address constant OS = 0xb1e25689D55734FD3ffFc939c4C3Eb52DFf8A794; // 70k   -> 10000/86400
 
+  address constant VAL = 0xB1550fD0fAdaf3c71AD585677AA3d1fd9CF7033f;
+  address constant VALPAIR = 0xAC4679fdDA27995bbDab65A36670630b60C07EDd;
+
   function setUp() public {}
 
   function run() public {
     vm.startBroadcast();
 
-    // mint valhalla
-    _valhalla = new Valhalla();
-
     // deploy genesis
     _ragnarok = new Ragnarok(
-      address(_valhalla),
+      VAL,
       DEVFUND,
-      1745402401,
+      1745402400,
       SHADOW_VOTER
     );
 
-    _boardroom = new Boardroom();
-
-    // distribute valhalla
-    _valhalla.distributeReward(DEVFUND, address(_ragnarok));
-
-    // create VAL-OS LP pool
-    _pair = IPairFactory(SHADOW_PAIR_FACTORY).createPair(address(_valhalla), OS, true);
-
-    // add LP pool to genesis
-    // add(0.237268519 ether, 0, IERC20(address(0)), false, 0); // VAL-OS LP 143.5k (20500/86400)
-    // _ragnarok.add(0.237268519 ether, 0, IERC20(_pair), false, 0);
-    _ragnarok.add(0.237268519 ether, 0, IERC20(_pair), false, 0); 
-
-    // deploy zap
-    _zap = new VALZapIn(address(_valhalla), OS, SHADOW_ROUTER);
-
-    // _timelockTokens = new TimelockTokens();
-
-    // (uint amountA, uint amountB, uint liquidity) = IRouter(payable(SHADOW_ROUTER)).addLiquidity(
-    //   address(_valhalla),
-    //   OS,
-    //   true,
-    //   30 ether,
-    //   30 ether,
-    //   0,
-    //   0,
-    //   0xcEFce8C7FC410d0B9c9cd50cC5655302f8662E2e,
-    //   block.timestamp + 600
-    // );
-    // require(amountA > 0, "amountA liquidity not changed");
-    // require(amountB > 0, "amountB liquidity not changed");
-
-    // uint256 pairBalance = IERC20(_pair).balanceOf(msg.sender);
-    // IPair(_pair).transferFrom(msg.sender, address(_timelockTokens), pairBalance);
-
-    // uint256 pairBalance2 = IERC20(_pair).balanceOf(address(_timelockTokens));
-    // require(pairBalance2 > 0, "transfer balance to lock failed");
-
-    // // transfer peg ownership to boardroom
-    // _valhalla.transferOperator(address(_boardroom));
-
-    // // renounce genesis ownership
-    // _ragnarok.setOperator(address(0));
+    _ragnarok.add(0.237268519 ether, 0, IERC20(0xAC4679fdDA27995bbDab65A36670630b60C07EDd), false, 0); 
 
     vm.stopBroadcast();
   }

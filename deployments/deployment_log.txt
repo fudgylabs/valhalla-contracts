@@ -1,5 +1,5 @@
 Compiling 1 files with Solc 0.8.28
-Solc 0.8.28 finished in 6.28s
+Solc 0.8.28 finished in 5.14s
 Compiler run successful with warnings:
 Warning (2072): Unused local variable.
   --> src/zap.sol:43:6:
@@ -27,11 +27,11 @@ Script ran successfully.
 
 Chain 146
 
-Estimated gas price: 110.357142857 gwei
+Estimated gas price: 110.000000001 gwei
 
-Estimated total gas used for script: 21548418
+Estimated total gas used for script: 21042196
 
-Estimated amount required: 2.378021843568350226 ETH
+Estimated amount required: 2.314641560021042196 ETH
 
 ==========================
 
@@ -41,10 +41,10 @@ Estimated amount required: 2.378021843568350226 ETH
 ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
 ##
 Start verification for (4) contracts
-Start verifying contract `0x39aB3427030638DB6Ab1884a156e1BcC8c900930` deployed on 146
-Start verifying contract `0x155Ac3c46bc896697F21347beDD97b035F50e448` deployed on 146
-Start verifying contract `0x5826A0c84279503Ab5A6dC0AD401fD7872785c04` deployed on 146
-Start verifying contract `0x3161c82D67ebaFF539c0c7B60bac467b9ADD3999` deployed on 146
+Start verifying contract `0xE99b3483f07AdDad6a2455e84bfcb5260480Fe1F` deployed on 146
+Start verifying contract `0x5F07a5E6a49C3254D5d5103FCACD07090d27a536` deployed on 146
+Start verifying contract `0x4bCCf58bBFF19D7921DCddeE936E2b1DbBe9e525` deployed on 146
+Start verifying contract `0x460Af304dc2D5272920676EbCD2CE1525724fC56` deployed on 146
 
 Transactions saved to: /Users/yetim/Work/fudgylabs/vahalla-protocol/contracts/broadcast/val_and_genesis.s.sol/146/run-latest.json
 

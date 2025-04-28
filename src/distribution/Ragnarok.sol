@@ -110,6 +110,36 @@ contract Ragnarok is ReentrancyGuard {
     return poolInfo.length;
   }
 
+  struct PoolData {
+    uint256 pid;
+    address token;
+    uint256 poolBalance;
+    uint256 stakeBalance;
+    uint256 stakeEarnings;
+  }
+
+  function getPoolData(address userAddress) external view returns (PoolData[] memory) {
+    // Create array of 19 PoolData that we will return
+    PoolData[] memory poolDataArray = new PoolData[](19);
+
+    for (uint256 pid = 0; pid < 19; pid++) {
+      PoolInfo memory pool = poolInfo[pid];
+      uint256 tokenBalance = pool.token.balanceOf(address(this));
+      UserInfo memory user = userInfo[pid][userAddress];
+
+      // Populate pool data
+      poolDataArray[pid] = PoolData({
+        pid: pid,
+        token: address(pool.token),
+        poolBalance: tokenBalance,
+        stakeBalance: user.amount,
+        stakeEarnings: user.rewardDebt
+      });
+    }
+
+    return poolDataArray;
+  }
+
   function checkPoolDuplicate(IERC20 _token) internal view {
     uint256 length = poolInfo.length;
     for (uint256 pid = 0; pid < length; ++pid) {
@@ -444,19 +474,4 @@ contract Ragnarok is ReentrancyGuard {
     operator = _operator;
   }
 
-  function governanceRecoverUnsupported(
-    IERC20 _token,
-    uint256 amount
-  ) external {
-    if (block.timestamp < poolEndTime + 7 days) {
-      // do not allow to drain tokens if less than 7 days after pool ends
-      uint256 length = poolInfo.length;
-      for (uint256 pid = 0; pid < length; ++pid) {
-        PoolInfo storage pool = poolInfo[pid];
-        require(_token != pool.token, "token cannot be pool token");
-      }
-    }
-
-    _token.safeTransfer(devFund, amount);
-  }
 }
